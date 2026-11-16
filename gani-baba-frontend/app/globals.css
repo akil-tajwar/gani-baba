@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================
+   BRAND COLORS  ←  change ONLY these two lines to re-colour the site
+   ===================================================================== */
+:root {
+  --primary-color: #1d4ed8; /* main brand color  (blue)            */
+  --secondary-color: #0b1f3a; /* dark accent color (header / footer) */
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --radius: 0.5rem;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
