@@ -17,19 +17,36 @@ npm run dev
 
 ## Change the colors (one place)
 
-Open **`app/globals.css`** and edit just these two lines:
+Open **`app/globals.css`** and edit these lines:
 
 ```css
 :root {
-  --primary-color: #1d4ed8;   /* buttons, links, prices, highlights */
-  --secondary-color: #0b1f3a; /* top strip, footer, dashboard sidebar */
+  --primary-color: #1d4ed8;   /* accents, buttons, links, prices       */
+  --secondary-color: #3b3b3a; /* header, footer, dashboard sidebar     */
+  --surface-color: #ece3dc;   /* soft beige panels: hero, tiles, banners */
 }
 ```
 
 Every shade (`bg-primary-50 … bg-primary-900`, hover states, borders, the
-dashboard sidebar, the hero slider) is derived from those two values in
-`tailwind.config.ts`. Use them in code as `bg-primary`, `text-primary`,
-`bg-secondary`, `border-primary-200`, etc.
+dashboard sidebar) is derived from those values in `tailwind.config.ts`.
+Use them in code as `bg-primary`, `text-primary`, `bg-secondary`,
+`bg-surface`, `border-primary-200`, etc.
+
+## Banner / hero slider
+
+Edit the `slides` array at the top of `components/home/hero-slider.tsx`:
+title, subtitle, text, button link and **`image`** (put the photo in `/public`,
+e.g. `image: '/banner-1.jpg'`, ~1400×1000 px landscape). Slides without an
+image show a soft brand-colored panel.
+
+## Animations
+
+- **Scroll reveal:** wrap anything in `<Reveal delay={90}>…</Reveal>`
+  (`hooks/use-reveal.tsx`). It fades/slides in once when scrolled into view.
+- **Section titles:** `components/shared/section-heading.tsx`.
+- Hover effects (category tiles, brand tiles, product cards, nav links, mega
+  menu, buttons) are plain Tailwind classes in each component.
+- Motion is automatically disabled for users with "reduce motion" enabled.
 
 ## Change contact details / payment numbers (one place)
 

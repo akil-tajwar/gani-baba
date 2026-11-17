@@ -12,9 +12,13 @@ import {
   Cable,
   Utensils,
   Package,
+  ArrowUpRight,
+  Truck,
+  ShieldCheck,
+  Headphones,
+  Banknote,
   type LucideIcon,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import HeroSlider from './hero-slider'
 import ProductCard from '../product/product-card'
 import { fetchBrands, fetchCategories, fetchProducts } from '@/utils/api'
@@ -30,8 +34,18 @@ import { Toaster } from '@/components/ui/toaster'
 import { useSearch } from '@/hooks/use-search'
 import { useRouter } from 'next/navigation'
 import Loader from '@/utils/loader'
+import { Reveal } from '@/hooks/use-reveal'
+import SectionHeading from '@/components/shared/section-heading'
+import { siteConfig } from '@/utils/constants'
 
 // Pick an icon from the category name (falls back to a box)
+const features = [
+  { icon: ShieldCheck, title: 'Genuine products', text: 'Trusted brands only' },
+  { icon: Truck, title: 'Home delivery', text: 'Across Bangladesh' },
+  { icon: Banknote, title: 'Flexible payment', text: 'bKash, Nagad, Rocket & COD' },
+  { icon: Headphones, title: 'Support', text: siteConfig.phone },
+]
+
 const iconForCategory = (name: string): LucideIcon => {
   const n = name.toLowerCase()
   if (/commode|toilet|wc|urinal/.test(n)) return Bath
@@ -107,7 +121,7 @@ export default function Home() {
   if (error) return <p className="text-center text-red-500">{error}</p>
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Hero Slider - hidden when searching */}
       {!searchQuery && <HeroSlider />}
 
@@ -115,13 +129,13 @@ export default function Home() {
       {searchQuery && (
         <section
           ref={searchResultsRef}
-          className="container mx-auto px-4 pt-10 pb-8 md:pb-12"
+          className="container mx-auto px-4 md:px-8 pt-12 pb-8 md:pb-12"
         >
-          <h2 className="text-2xl font-bold text-secondary mb-6">
-            Search Results for &quot;{searchQuery}&quot; (
-            {filteredProducts.length} items)
-          </h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <SectionHeading
+            title="Search results"
+            subtitle={`"${searchQuery}" — ${filteredProducts.length} items`}
+          />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-8 md:gap-x-6">
             {filteredProducts.map((product) => (
               <ProductCard key={product.productId} product={product} />
             ))}
@@ -130,130 +144,155 @@ export default function Home() {
       )}
 
       {!searchQuery && (
-        <main className="container mx-auto px-4 pt-10 md:pt-14">
-          {/* Shop by category */}
-          {categories.length > 0 && (
-            <section className="mb-12 md:mb-16">
-              <div className="flex items-end justify-between mb-6">
-                <h2 className="text-2xl md:text-3xl font-bold text-secondary">
-                  Shop by Category
-                </h2>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                {categories.map((category) => {
-                  const Icon = iconForCategory(category.name)
-                  return (
-                    <Link
-                      key={category.categoryId}
-                      href={`/category-products/${category.categoryId}`}
-                      className="group flex flex-col items-center text-center bg-primary-50 hover:bg-primary rounded-xl px-3 py-6 transition"
-                    >
-                      <Icon className="w-9 h-9 text-primary group-hover:text-white transition" />
-                      <span className="mt-3 text-sm font-semibold text-secondary group-hover:text-white transition">
-                        {category.name}
-                      </span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </section>
-          )}
+        <>
+          {/* Feature strip */}
+          <section className="border-b">
+            <div className="container mx-auto px-4 md:px-8 grid grid-cols-2 md:grid-cols-4">
+              {features.map((f, i) => (
+                <Reveal key={f.title} delay={i * 90}>
+                  <div className="group flex items-center gap-4 px-2 py-6 md:py-8 md:border-r last:border-r-0">
+                    <f.icon
+                      className="w-8 h-8 text-primary shrink-0 transition-transform duration-300 group-hover:-translate-y-1"
+                      strokeWidth={1.2}
+                    />
+                    <div>
+                      <p className="text-[11px] md:text-xs uppercase tracking-[0.18em] font-semibold text-secondary">
+                        {f.title}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">{f.text}</p>
+                    </div>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </section>
 
-          {/* Special offers */}
-          {offerProducts.length > 0 && (
-            <section className="mb-12 md:mb-16">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl md:text-3xl font-bold text-secondary">
-                  Special Offers
-                </h2>
-                <Button
-                  variant="outline"
-                  className="text-sm px-4 py-2"
-                  onClick={() => router.push('/flash-sale-products')}
-                >
-                  View All
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                {offerProducts.map((product) => (
-                  <ProductCard key={product.productId} product={product} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Top brands */}
-          {brands.length > 0 && (
-            <section className="mb-12 md:mb-16">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl md:text-3xl font-bold text-secondary">
-                  Top Brands
-                </h2>
-                <Button
-                  variant="outline"
-                  className="text-sm px-4 py-2"
-                  onClick={() => router.push('/kids-products')}
-                >
-                  View All Brands
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {brands.slice(0, 12).map((brand) => (
-                  <Link
-                    key={brand.brandId}
-                    href={`/men-products?brand=${brand.brandId}`}
-                    className="border rounded-lg py-6 px-3 text-center font-semibold text-secondary hover:border-primary hover:text-primary hover:shadow-md transition"
-                  >
-                    {brand.name}
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* One product row per category */}
-          {categories.map((category) => {
-            const categoryProducts = getProductsByCategory(category.categoryId!)
-            if (categoryProducts.length === 0) return null
-
-            const displayed = categoryProducts.slice(0, 4)
-            const hasMore = categoryProducts.length > 4
-
-            return (
-              <section key={category.categoryId} className="mb-12 md:mb-14">
-                <div className="flex justify-between items-center mb-5">
-                  <h3 className="text-xl md:text-2xl font-semibold text-secondary">
-                    {category.name}
-                  </h3>
-                  {hasMore && (
-                    <Button
-                      variant="outline"
-                      className="text-sm px-4 py-2"
-                      onClick={() =>
-                        router.push(`/category-products/${category.categoryId}`)
-                      }
-                    >
-                      View All
-                    </Button>
-                  )}
+          <main className="container mx-auto px-4 md:px-8 pt-16 md:pt-24">
+            {/* Shop by category */}
+            {categories.length > 0 && (
+              <section className="mb-20 md:mb-28">
+                <SectionHeading
+                  title="Shop by category"
+                  subtitle="Everything for your bathroom & kitchen"
+                />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+                  {categories.map((category, index) => {
+                    const Icon = iconForCategory(category.name)
+                    return (
+                      <Reveal key={category.categoryId} delay={(index % 4) * 90}>
+                        <Link
+                          href={`/category-products/${category.categoryId}`}
+                          className="group relative flex flex-col justify-between h-40 md:h-48 overflow-hidden bg-primary/20 p-5 md:p-6 transition-colors duration-500 hover:bg-secondary"
+                        >
+                          <div className="flex items-start justify-between">
+                            <span className="text-xs tracking-[0.25em] text-secondary/50 group-hover:text-white/50 transition-colors">
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
+                            <Icon
+                              className="w-9 h-9 text-primary group-hover:text-primary-300 transition-all duration-500 group-hover:scale-110 group-hover:-rotate-6"
+                              strokeWidth={1.1}
+                            />
+                          </div>
+                          <div className="flex items-end justify-between gap-2">
+                            <span className="text-sm md:text-base uppercase tracking-[0.18em] font-medium text-secondary group-hover:text-white transition-colors">
+                              {category.name}
+                            </span>
+                            <ArrowUpRight className="w-5 h-5 shrink-0 text-secondary/40 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 group-hover:text-white transition-all duration-500" />
+                          </div>
+                          <span className="absolute left-0 bottom-0 h-0.5 w-0 bg-primary group-hover:w-full transition-all duration-500" />
+                        </Link>
+                      </Reveal>
+                    )
+                  })}
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                  {displayed.map((product) => (
-                    <ProductCard key={product.productId} product={product} />
+              </section>
+            )}
+
+            {/* Special offers */}
+            {offerProducts.length > 0 && (
+              <section className="mb-20 md:mb-28">
+                <SectionHeading
+                  title="Special offers"
+                  subtitle="Limited-time prices"
+                  href="/flash-sale-products"
+                />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-8 md:gap-x-6">
+                  {offerProducts.map((product, i) => (
+                    <Reveal key={product.productId} delay={i * 90}>
+                      <ProductCard product={product} />
+                    </Reveal>
                   ))}
                 </div>
               </section>
-            )
-          })}
+            )}
+          </main>
 
-          {products.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">
-                No products available at the moment.
-              </p>
-            </div>
+          {/* Top brands — full-width beige band */}
+          {brands.length > 0 && (
+            <section className="bg-primary/20 py-16 md:py-24 mb-20 md:mb-28">
+              <div className="container mx-auto px-4 md:px-8">
+                <SectionHeading
+                  title="Top brands"
+                  subtitle="Shop by the names you trust"
+                  href="/kids-products"
+                  linkLabel="All brands"
+                />
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-secondary/10 border border-secondary/10">
+                  {brands.slice(0, 12).map((brand, i) => (
+                    <Reveal key={brand.brandId} delay={(i % 6) * 70} direction="none">
+                      <Link
+                        href={`/men-products?brand=${brand.brandId}`}
+                        className="group relative flex items-center justify-center h-24 md:h-28 bg-surface px-3 text-center text-sm uppercase tracking-[0.18em] font-medium text-secondary transition-colors duration-300 hover:bg-white hover:text-primary"
+                      >
+                        {brand.name}
+                        <span className="absolute bottom-0 left-1/2 h-0.5 w-0 -translate-x-1/2 bg-primary group-hover:w-2/3 transition-all duration-500" />
+                      </Link>
+                    </Reveal>
+                  ))}
+                </div>
+              </div>
+            </section>
           )}
-        </main>
+
+          <main className="container mx-auto px-4 md:px-8">
+            {/* One product row per category */}
+            {categories.map((category) => {
+              const categoryProducts = getProductsByCategory(category.categoryId!)
+              if (categoryProducts.length === 0) return null
+
+              const displayed = categoryProducts.slice(0, 4)
+              const hasMore = categoryProducts.length > 4
+
+              return (
+                <section key={category.categoryId} className="mb-20 md:mb-24">
+                  <SectionHeading
+                    title={category.name}
+                    href={
+                      hasMore
+                        ? `/category-products/${category.categoryId}`
+                        : undefined
+                    }
+                  />
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-8 md:gap-x-6">
+                    {displayed.map((product, i) => (
+                      <Reveal key={product.productId} delay={i * 90}>
+                        <ProductCard product={product} />
+                      </Reveal>
+                    ))}
+                  </div>
+                </section>
+              )
+            })}
+
+            {products.length === 0 && (
+              <div className="text-center py-16">
+                <p className="text-gray-500 uppercase tracking-[0.2em] text-sm">
+                  No products available at the moment.
+                </p>
+              </div>
+            )}
+          </main>
+        </>
       )}
 
       <Toaster />

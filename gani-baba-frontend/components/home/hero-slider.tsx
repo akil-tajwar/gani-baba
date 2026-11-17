@@ -3,17 +3,19 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, Droplets } from 'lucide-react'
+import { WaveLine } from '@/components/shared/section-heading'
 
 /**
- * Hero slides. Colors come from the theme (primary / secondary), so no
- * image is required. To use a banner photo, put the file in /public and set
- * `image: '/your-banner.jpg'` on a slide.
+ * HERO SLIDES  —  edit this list to change the banner.
+ * Put your banner photos in /public and set `image` (e.g. '/banner-1.jpg').
+ * Recommended size: 1400 x 1000 px (landscape), JPG/WebP.
+ * Without an image a soft brand-colored panel is shown instead.
  */
 const slides: {
   id: number
-  eyebrow: string
   title: string
+  subtitle: string
   text: string
   cta: string
   href: string
@@ -21,124 +23,149 @@ const slides: {
 }[] = [
   {
     id: 1,
-    eyebrow: 'Bathroom Essentials',
-    title: 'Premium Commodes & Basins',
-    text: 'Modern designs from trusted brands, delivered to your door.',
-    cta: 'Shop Now',
+    title: 'Bathrooms',
+    subtitle: 'by Gani Baba, for you',
+    text: 'Commodes, basins and accessories from trusted brands.',
+    cta: 'Shop all products',
     href: '/men-products',
+    image: '/banner1.jpg',
   },
   {
     id: 2,
-    eyebrow: 'Special Offers',
-    title: 'Great Prices on Taps & Showers',
-    text: 'Limited-time discounts on selected products.',
-    cta: 'See Offers',
+    title: 'Offers',
+    subtitle: 'Special prices this season',
+    text: 'Selected taps, showers and geysers at reduced prices.',
+    cta: 'See special offers',
     href: '/flash-sale-products',
+    image: '/banner2.jpg',
   },
   {
     id: 3,
-    eyebrow: 'Shop by Brand',
-    title: 'Geysers, Pumps & Pipe Fittings',
-    text: 'Genuine products from the brands you already trust.',
-    cta: 'Browse Brands',
+    title: 'Brands',
+    subtitle: 'The names you trust',
+    text: 'Browse genuine products brand by brand.',
+    cta: 'Explore brands',
     href: '/kids-products',
+    image: '/banner3.jpg',
   },
 ]
 
+const pad = (n: number) => String(n).padStart(2, '0')
+
 export default function HeroSlider() {
-  const [currentSlide, setCurrentSlide] = useState(0)
+  const [current, setCurrent] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (!isHovered) {
-        setCurrentSlide((prev) => (prev + 1) % slides.length)
-      }
-    }, 5000)
+      if (!isHovered) setCurrent((prev) => (prev + 1) % slides.length)
+    }, 6500)
     return () => clearInterval(timer)
   }, [isHovered])
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length)
-  const prevSlide = () =>
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
+  const next = () => setCurrent((prev) => (prev + 1) % slides.length)
+  const prev = () =>
+    setCurrent((prev) => (prev - 1 + slides.length) % slides.length)
+
+  const slide = slides[current]
 
   return (
     <section
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      className="bg-surface"
     >
-      <div className="relative h-[42vh] md:h-[56vh] overflow-hidden bg-secondary">
-        {/* Track */}
-        <div
-          className="flex h-full transition-transform duration-700 ease-in-out"
-          style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-        >
-          {slides.map((slide) => (
+      <div className="grid lg:grid-cols-[42%_58%] lg:h-[calc(100dvh-80px)] lg:min-h-[560px] lg:max-h-[780px]">
+        {/* ---------- Image (top on mobile, right on desktop) ---------- */}
+        <div className="relative order-1 lg:order-2 h-64 sm:h-80 lg:h-full overflow-hidden bg-secondary-100">
+          {slides.map((s, index) => (
             <div
-              key={slide.id}
-              className="w-full h-full flex-shrink-0 relative bg-gradient-to-r from-secondary via-secondary-700 to-primary"
-              style={{ minWidth: '100%' }}
+              key={s.id}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                index === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
+              }`}
             >
-              {slide.image && (
+              {s.image ? (
                 <Image
-                  src={slide.image}
-                  alt={slide.title}
+                  src={s.image}
+                  alt={s.title}
                   fill
-                  className="object-cover opacity-40"
+                  priority={index === 0}
+                  sizes="(min-width: 1024px) 58vw, 100vw"
+                  className={`object-cover ${index === current ? 'animate-zoomOut' : ''}`}
                 />
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-200 via-primary-100 to-surface-dark flex items-center justify-center">
+                  <Droplets className="w-40 h-40 text-primary/20" strokeWidth={0.8} />
+                </div>
               )}
-              <div className="relative h-full container mx-auto px-6 md:px-12 flex flex-col justify-center text-white">
-                <span className="text-xs md:text-sm uppercase tracking-[0.25em] text-primary-200 mb-3">
-                  {slide.eyebrow}
-                </span>
-                <h2 className="text-3xl md:text-6xl font-extrabold max-w-2xl leading-tight">
-                  {slide.title}
-                </h2>
-                <p className="mt-3 md:mt-5 text-primary-100 max-w-lg text-sm md:text-lg">
-                  {slide.text}
-                </p>
-                <Link
-                  href={slide.href}
-                  className="mt-6 inline-block w-fit bg-white text-primary font-semibold px-6 py-3 rounded hover:bg-primary-100 transition"
-                >
-                  {slide.cta}
-                </Link>
-              </div>
             </div>
           ))}
         </div>
 
-        <button
-          onClick={prevSlide}
-          aria-label="Previous slide"
-          className={`absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all duration-500 ${
-            isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-5'
-          }`}
-        >
-          <ChevronLeft className="w-6 h-6 text-gray-800" />
-        </button>
+        {/* ---------- Text panel ---------- */}
+        <div className="order-2 lg:order-1 flex flex-col justify-between px-6 sm:px-10 lg:px-16 py-8 lg:py-14 gap-10">
+          <div className="hidden lg:flex w-[76px] h-[76px] rounded-full border border-primary items-center justify-center text-primary">
+            <Droplets className="w-8 h-8" strokeWidth={1.2} />
+          </div>
 
-        <button
-          onClick={nextSlide}
-          aria-label="Next slide"
-          className={`absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all duration-500 ${
-            isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-5'
-          }`}
-        >
-          <ChevronRight className="w-6 h-6 text-gray-800" />
-        </button>
+          <div key={slide.id} className="animate-fadeUp">
+            <WaveLine className="text-primary mb-5" />
+            <h1 className="text-4xl sm:text-5xl xl:text-6xl font-semibold uppercase tracking-[0.28em] text-secondary break-words">
+              {slide.title}
+            </h1>
+            <p className="mt-4 text-lg sm:text-xl uppercase tracking-[0.25em] text-secondary/80 font-light">
+              {slide.subtitle}
+            </p>
+            <p className="mt-8 max-w-sm text-xs sm:text-sm uppercase tracking-[0.16em] text-secondary/70 leading-relaxed">
+              {slide.text}
+            </p>
+            <Link
+              href={slide.href}
+              className="group mt-8 inline-flex items-center gap-3 border border-secondary px-6 py-3 text-xs uppercase tracking-[0.22em] text-secondary hover:bg-secondary hover:text-white transition-colors duration-300"
+            >
+              {slide.cta}
+              <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </Link>
+          </div>
 
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2">
-          {slides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              aria-label={`Go to slide ${index + 1}`}
-              className={`w-3 h-3 rounded-full transition-all ${
-                index === currentSlide ? 'bg-white' : 'bg-white/50'
-              }`}
-            />
-          ))}
+          {/* Controls */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={prev}
+                aria-label="Previous slide"
+                className="text-secondary hover:text-primary hover:-translate-x-0.5 transition"
+              >
+                <ChevronLeft className="w-7 h-7" strokeWidth={1.3} />
+              </button>
+              <button
+                onClick={next}
+                aria-label="Next slide"
+                className="text-secondary hover:text-primary hover:translate-x-0.5 transition"
+              >
+                <ChevronRight className="w-7 h-7" strokeWidth={1.3} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 ml-auto lg:ml-4">
+              {slides.map((s, index) => (
+                <button
+                  key={s.id}
+                  onClick={() => setCurrent(index)}
+                  aria-label={`Go to slide ${index + 1}`}
+                  className={`h-0.5 transition-all duration-500 ${
+                    index === current
+                      ? 'w-10 bg-primary'
+                      : 'w-5 bg-secondary/30 hover:bg-secondary/60'
+                  }`}
+                />
+              ))}
+              <span className="ml-3 text-xs tracking-[0.2em] text-secondary/60">
+                {pad(current + 1)} / {pad(slides.length)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </section>

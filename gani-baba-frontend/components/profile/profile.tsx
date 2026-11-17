@@ -15,24 +15,39 @@ import {
   Edit2,
   Save,
   X,
+  ChevronRight,
+  CreditCard,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { CustomCombobox } from '@/utils/custom-combobox'
 import { locationData } from '@/utils/constants'
 import { toast } from '@/hooks/use-toast'
 import formatDate from '@/utils/formatDate'
+import { Reveal } from '@/hooks/use-reveal'
+import { WaveLine } from '@/components/shared/section-heading'
 
 type TabType = 'user-info' | 'my-orders'
+
+const methodLabel: Record<string, string> = {
+  bkash: 'bKash',
+  nagad: 'Nagad',
+  rocket: 'Rocket',
+  cod: 'Cash on Delivery',
+}
+
+const statusStyle = (status?: string) => {
+  switch (status) {
+    case 'delivered':
+      return 'bg-green-50 text-green-700 border-green-200'
+    case 'confirmed':
+      return 'bg-primary-50 text-primary border-primary-200'
+    case 'pending':
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    default:
+      return 'bg-gray-50 text-gray-700 border-gray-200'
+  }
+}
 
 export default function Profile() {
   useInitializeUser()
@@ -60,7 +75,6 @@ export default function Profile() {
         setLoading(true)
         const response = await getUserByUserId(token, userData?.userId ?? 0)
         setUserInfo(response.data)
-        console.log('🚀 ~ fetchUserInfo ~ response:', response)
 
         // Initialize edit form data
         setEditFormData({
@@ -72,12 +86,7 @@ export default function Profile() {
           address: response.data?.address || '',
         })
       } catch (error) {
-        // console.error('Failed to fetch user info:', error)
-        // toast({
-        //   title: 'Error',
-        //   description: 'Failed to load user information',
-        //   variant: 'destructive',
-        // })
+        // user info could not be loaded; the page shows empty values
       } finally {
         setLoading(false)
       }
@@ -94,7 +103,6 @@ export default function Profile() {
       try {
         setLoading(true)
         const response = await fetchOrdersByUserId(token, userData?.userId)
-        console.log('🚀 ~ fetchOrders ~ userData?.userId:', userData?.userId)
         setOrders(
           Array.isArray(response.data)
             ? response.data
@@ -102,7 +110,6 @@ export default function Profile() {
               ? [response.data]
               : []
         )
-        console.log('🚀 ~ fetchOrders ~ response.data:', response.data)
       } catch (error) {
         console.error('Failed to fetch orders:', error)
         toast({
@@ -152,16 +159,13 @@ export default function Profile() {
     try {
       setLoading(true)
 
-      // Update user
       const updateResponse = await updateUser(
         token,
         userData.userId,
         editFormData
       )
 
-      // Check if the update was actually successful
       if (updateResponse.error) {
-        console.log("🚀 ~ handleSaveChanges ~ updateResponse:", updateResponse)
         toast({
           title: 'Error',
           description: (updateResponse.error?.details as any).message,
@@ -170,7 +174,6 @@ export default function Profile() {
         return
       }
 
-      // Refresh user info only if update was successful
       const response = await getUserByUserId(token, userData.userId)
       setUserInfo(response.data)
       setIsEditing(false)
@@ -208,216 +211,187 @@ export default function Profile() {
     )
   }
 
+  const divisionName =
+    locationData.divisions.find((d) => d.id === userInfo?.division)?.name ||
+    'Not provided'
+
+  const districtName =
+    (userInfo?.division &&
+      locationData.districts[
+        userInfo.division as keyof typeof locationData.districts
+      ]?.find((d) => d.id === userInfo?.district)?.name) ||
+    'Not provided'
+
+  const infoFields = [
+    { icon: User, label: 'Full name', value: userInfo?.fullName },
+    { icon: User, label: 'Username', value: userInfo?.username },
+    { icon: Mail, label: 'Email', value: userInfo?.email },
+    { icon: Phone, label: 'Phone number', value: userInfo?.phone },
+    { icon: MapPin, label: 'Division', value: divisionName },
+    { icon: MapPin, label: 'District', value: districtName },
+  ]
+
+  const inputClass =
+    'rounded-none border-secondary/20 bg-white focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary'
+
   if (loading && !userInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-primary-50 to-primary-50">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading profile...</p>
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
+          <p className="text-xs uppercase tracking-[0.25em] text-secondary/60">
+            Loading profile
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen py-8">
-      <div className="lg:w-4/5 mx-auto">
-        {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Profile Header Section - Now on the left */}
-          <div className="lg:col-span-4">
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 sticky top-28 ">
-              <div className="relative h-32 bg-gradient-to-r from-primary-600 via-primary-600 to-primary-800">
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNnptLTEyIDEyYzMuMzE0IDAgNiAyLjY4NiA2IDZzLTIuNjg2IDYtNiA2LTYtMi42ODYtNi02IDIuNjg2LTYgNi02eiIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIuMDUiLz48L2c+PC9zdmc+')] opacity-30"></div>
-              </div>
-
-              <div className="px-6 pb-6">
-                <div className="flex flex-col items-center -mt-16">
-                  {/* Avatar */}
-                  <div className="relative group mb-4">
-                    <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-7xl font-bold shadow-2xl ring-4 ring-white transform transition-transform group-hover:scale-105">
-                      {getInitial()}
-                    </div>
-                    <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-green-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
-                      <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
-                    </div>
-                  </div>
-
-                  {/* User Info */}
-                  <div className="text-center w-full">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                      {userInfo?.fullName || 'User'}
-                    </h1>
-                    <p className="text-gray-500 text-base mb-3">
-                      @{userInfo?.username || 'username'}
-                    </p>
-                    {userInfo?.createdAt && (
-                      <div className="inline-flex items-center gap-1.5 text-gray-700 text-sm font-medium bg-gray-50 px-4 py-2 rounded-full">
-                        <Calendar className="w-3.5 h-3.5" />
-                        Joined {formatDate(String(userInfo.createdAt))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+    <div className="min-h-screen bg-background">
+      {/* ---------------- Header band ---------------- */}
+      <div className="bg-surface">
+        <div className="container mx-auto px-4 py-10 md:px-8 md:py-14 animate-fadeUp">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center bg-secondary text-5xl font-light text-white">
+              {getInitial()}
+            </div>
+            <div>
+              <WaveLine className="mb-3 text-primary" />
+              <h1 className="text-2xl font-semibold uppercase tracking-[0.18em] text-secondary md:text-3xl">
+                {userInfo?.fullName || 'My account'}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs uppercase tracking-[0.18em] text-secondary/60">
+                <span>@{userInfo?.username || 'username'}</span>
+                {userInfo?.createdAt && (
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Joined {formatDate(String(userInfo.createdAt))}
+                  </span>
+                )}
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Tab Content - Now on the right */}
-          <div className="lg:col-span-8">
-            {/* Tab Navigation - Now at the top */}
-            <div className="bg-white rounded-xl shadow-lg p-2 border border-gray-100 mb-6">
-              <div className="flex gap-2">
+      <div className="container mx-auto px-4 py-10 md:px-8 md:py-14">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[260px_1fr]">
+          {/* ---------------- Side navigation ---------------- */}
+          <aside>
+            <nav className="flex gap-2 overflow-x-auto lg:sticky lg:top-28 lg:flex-col lg:gap-0 lg:border lg:border-secondary/10 lg:bg-white">
+              {(
+                [
+                  ['user-info', 'Personal information', User],
+                  ['my-orders', 'My orders', Package],
+                ] as [TabType, string, typeof User][]
+              ).map(([key, label, Icon]) => (
                 <button
-                  onClick={() => setActiveTab('user-info')}
-                  className={`flex items-center gap-3 px-6 py-3 rounded-lg transition-all duration-200 ${
-                    activeTab === 'user-info'
-                      ? 'bg-gradient-to-r from-primary-600 to-primary-600 text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-50'
+                  key={key}
+                  onClick={() => setActiveTab(key)}
+                  className={`group relative flex shrink-0 items-center gap-3 border px-5 py-4 text-xs font-medium uppercase tracking-[0.18em] transition-all duration-300 lg:border-0 lg:border-b lg:border-secondary/10 lg:last:border-b-0 ${
+                    activeTab === key
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-secondary/15 bg-white text-secondary/70 hover:bg-surface hover:text-secondary'
                   }`}
                 >
-                  <User className="w-5 h-5" />
-                  <span className="font-medium">User Info</span>
+                  <Icon className="h-4 w-4" strokeWidth={1.5} />
+                  {label}
+                  <ChevronRight
+                    className={`ml-auto hidden h-4 w-4 transition-transform duration-300 lg:block ${
+                      activeTab === key
+                        ? 'translate-x-0'
+                        : '-translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'
+                    }`}
+                  />
                 </button>
-                <button
-                  onClick={() => setActiveTab('my-orders')}
-                  className={`flex items-center gap-3 px-6 py-3 rounded-lg transition-all duration-200 ${
-                    activeTab === 'my-orders'
-                      ? 'bg-gradient-to-r from-primary-600 to-primary-600 text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <Package className="w-5 h-5" />
-                  <span className="font-medium">My Orders</span>
-                </button>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100">
-              {/* User Info Tab */}
-              {activeTab === 'user-info' && (
-                <div className="p-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">
-                      Personal Information
+              ))}
+            </nav>
+          </aside>
+
+          {/* ---------------- Content ---------------- */}
+          <section>
+            {/* ===== Personal information ===== */}
+            {activeTab === 'user-info' && (
+              <Reveal>
+                <div className="border border-secondary/10 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-secondary/10 px-6 py-5 md:px-8">
+                    <h2 className="text-sm font-semibold uppercase tracking-[0.22em] text-secondary">
+                      Personal information
                     </h2>
                     {!isEditing ? (
-                      <Button
+                      <button
                         onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700"
+                        className="group flex items-center gap-2 border border-secondary px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-secondary transition-all duration-300 hover:bg-secondary hover:text-white"
                       >
-                        <Edit2 className="w-4 h-4" />
-                        Edit Profile
-                      </Button>
+                        <Edit2 className="h-3.5 w-3.5" />
+                        Edit profile
+                      </button>
                     ) : (
                       <div className="flex gap-2">
-                        <Button
+                        <button
                           onClick={handleSaveChanges}
                           disabled={loading}
-                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                          className="flex items-center gap-2 bg-primary px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-white transition-colors hover:bg-secondary disabled:opacity-60"
                         >
-                          <Save className="w-4 h-4" />
-                          Save Changes
-                        </Button>
-                        <Button
+                          <Save className="h-3.5 w-3.5" />
+                          {loading ? 'Saving...' : 'Save changes'}
+                        </button>
+                        <button
                           onClick={handleCancelEdit}
-                          variant="outline"
-                          className="flex items-center gap-2"
+                          className="flex items-center gap-2 border border-secondary/30 px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-secondary transition-colors hover:border-secondary"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="h-3.5 w-3.5" />
                           Cancel
-                        </Button>
+                        </button>
                       </div>
                     )}
                   </div>
 
-                  {!isEditing ? (
-                    <div className="space-y-6">
-                      {/* Read-only view */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            Full Name
-                          </Label>
-                          <p className="text-lg font-medium text-gray-900">
-                            {userInfo?.fullName || 'Not provided'}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            Username
-                          </Label>
-                          <p className="text-lg font-medium text-gray-900">
-                            {userInfo?.username || 'Not provided'}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                            <Mail className="w-4 h-4" />
-                            Email
-                          </Label>
-                          <p className="text-lg font-medium text-gray-900">
-                            {userInfo?.email || 'Not provided'}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                            <Phone className="w-4 h-4" />
-                            Phone Number
-                          </Label>
-                          <p className="text-lg font-medium text-gray-900">
-                            {userInfo?.phone || 'Not provided'}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
-                            Division
-                          </Label>
-                          <p className="text-lg font-medium text-gray-900">
-                            {locationData.divisions.find(
-                              (d) => d.id === userInfo?.division
-                            )?.name || 'Not provided'}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
-                            District
-                          </Label>
-                          <p className="text-lg font-medium text-gray-900">
-                            {(userInfo?.division &&
-                              locationData.districts[
-                                userInfo.division as keyof typeof locationData.districts
-                              ]?.find((d) => d.id === userInfo?.district)
-                                ?.name) ||
-                              'Not provided'}
-                          </p>
-                        </div>
-
-                        <div className="space-y-2 md:col-span-2">
-                          <Label className="text-sm font-medium text-gray-500 flex items-center gap-2">
-                            <MapPin className="w-4 h-4" />
+                  <div className="p-6 md:p-8">
+                    {!isEditing ? (
+                      /* ---- read-only view ---- */
+                      <dl className="grid grid-cols-1 gap-px bg-secondary/10 sm:grid-cols-2">
+                        {infoFields.map((f) => (
+                          <div
+                            key={f.label}
+                            className="group bg-white px-5 py-5 transition-colors hover:bg-surface/50"
+                          >
+                            <dt className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-secondary/50">
+                              <f.icon
+                                className="h-3.5 w-3.5 text-primary"
+                                strokeWidth={1.5}
+                              />
+                              {f.label}
+                            </dt>
+                            <dd className="mt-2 text-base font-medium text-secondary">
+                              {f.value || 'Not provided'}
+                            </dd>
+                          </div>
+                        ))}
+                        <div className="group bg-white px-5 py-5 transition-colors hover:bg-surface/50 sm:col-span-2">
+                          <dt className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-secondary/50">
+                            <MapPin
+                              className="h-3.5 w-3.5 text-primary"
+                              strokeWidth={1.5}
+                            />
                             Address
-                          </Label>
-                          <p className="text-lg font-medium text-gray-900">
+                          </dt>
+                          <dd className="mt-2 text-base font-medium text-secondary">
                             {userInfo?.address || 'Not provided'}
-                          </p>
+                          </dd>
                         </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {/* Edit mode */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      </dl>
+                    ) : (
+                      /* ---- edit form ---- */
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="fullName">Full Name</Label>
+                          <Label
+                            htmlFor="fullName"
+                            className="text-[11px] uppercase tracking-[0.2em] text-secondary/60"
+                          >
+                            Full name
+                          </Label>
                           <Input
                             id="fullName"
                             value={editFormData.fullName}
@@ -428,11 +402,17 @@ export default function Profile() {
                               }))
                             }
                             placeholder="Enter your full name"
+                            className={inputClass}
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="email">Email</Label>
+                          <Label
+                            htmlFor="email"
+                            className="text-[11px] uppercase tracking-[0.2em] text-secondary/60"
+                          >
+                            Email
+                          </Label>
                           <Input
                             id="email"
                             type="email"
@@ -444,11 +424,17 @@ export default function Profile() {
                               }))
                             }
                             placeholder="Enter your email"
+                            className={inputClass}
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="phone">Phone Number</Label>
+                          <Label
+                            htmlFor="phone"
+                            className="text-[11px] uppercase tracking-[0.2em] text-secondary/60"
+                          >
+                            Phone number
+                          </Label>
                           <Input
                             id="phone"
                             value={editFormData.phone}
@@ -459,11 +445,14 @@ export default function Profile() {
                               }))
                             }
                             placeholder="Enter your phone number"
+                            className={inputClass}
                           />
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Division</Label>
+                          <Label className="text-[11px] uppercase tracking-[0.2em] text-secondary/60">
+                            Division
+                          </Label>
                           <CustomCombobox
                             items={locationData.divisions}
                             value={
@@ -483,7 +472,9 @@ export default function Profile() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>District</Label>
+                          <Label className="text-[11px] uppercase tracking-[0.2em] text-secondary/60">
+                            District
+                          </Label>
                           <CustomCombobox
                             items={getAvailableDistricts()}
                             value={
@@ -504,7 +495,12 @@ export default function Profile() {
                         </div>
 
                         <div className="space-y-2 md:col-span-2">
-                          <Label htmlFor="address">Address</Label>
+                          <Label
+                            htmlFor="address"
+                            className="text-[11px] uppercase tracking-[0.2em] text-secondary/60"
+                          >
+                            Address
+                          </Label>
                           <textarea
                             id="address"
                             value={editFormData.address}
@@ -516,108 +512,134 @@ export default function Profile() {
                             }
                             placeholder="Enter your complete address"
                             rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                            className="w-full resize-none border border-secondary/20 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              )}
+              </Reveal>
+            )}
 
-              {/* My Orders Tab */}
-              {activeTab === 'my-orders' && (
-                <div className="p-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                    Order History
+            {/* ===== My orders ===== */}
+            {activeTab === 'my-orders' && (
+              <div>
+                <div className="mb-6 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.22em] text-secondary">
+                    Order history
                   </h2>
-
-                  {loading ? (
-                    <div className="text-center py-12">
-                      <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                      <p className="text-gray-600">Loading orders...</p>
-                    </div>
-                  ) : orders.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-600 text-lg">No orders yet</p>
-                      <p className="text-gray-400 text-sm">
-                        Your order history will appear here
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="rounded-md border overflow-x-scroll">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[100px]">Sl No.</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Items</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">
-                              Total Amount
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {orders.map((order, index) => (
-                            <TableRow key={index}>
-                              <TableCell className="font-medium">
-                                {index + 1}.
-                              </TableCell>
-                              <TableCell>
-                                {formatDate(order.orderMaster.createdAt)}
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  {order.orderDetails &&
-                                  order.orderDetails.length > 0 ? (
-                                    order.orderDetails.map(
-                                      (item: any, idx: number) => (
-                                        <div
-                                          key={idx}
-                                          className="text-sm text-gray-600"
-                                        >
-                                          {item.productName || 'Product'} x {item.quantity}
-                                        </div>
-                                      )
-                                    )
-                                  ) : (
-                                    <span className="text-sm text-gray-400">
-                                      No items
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <span
-                                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                    order.orderMaster.status === 'delivered'
-                                      ? 'bg-green-100 text-green-700'
-                                      : order.orderMaster.status ===
-                                          'processing'
-                                        ? 'bg-primary-100 text-primary-700'
-                                        : order.orderMaster.status === 'pending'
-                                          ? 'bg-yellow-100 text-yellow-700'
-                                          : 'bg-gray-100 text-gray-700'
-                                  }`}
-                                >
-                                  {order.orderMaster.status?.toUpperCase()}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right font-bold text-primary-600">
-                                ৳{Math.round(order.orderMaster.totalAmount)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                  {!loading && orders.length > 0 && (
+                    <span className="text-xs uppercase tracking-[0.18em] text-secondary/50">
+                      {orders.length} {orders.length === 1 ? 'order' : 'orders'}
+                    </span>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
+
+                {loading ? (
+                  <div className="border border-secondary/10 bg-white py-16 text-center">
+                    <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
+                    <p className="text-xs uppercase tracking-[0.25em] text-secondary/60">
+                      Loading orders
+                    </p>
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="border border-secondary/10 bg-white py-16 text-center">
+                    <Package
+                      className="mx-auto mb-4 h-14 w-14 text-secondary/20"
+                      strokeWidth={1}
+                    />
+                    <p className="text-sm uppercase tracking-[0.2em] text-secondary">
+                      No orders yet
+                    </p>
+                    <p className="mt-1 text-sm text-secondary/50">
+                      Your order history will appear here
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {orders.map((order, index) => (
+                      <Reveal
+                        key={order.orderMaster?.ordersMasterId ?? index}
+                        delay={(index % 4) * 70}
+                      >
+                        <article className="border border-secondary/10 bg-white transition-all duration-300 hover:border-primary/40 hover:shadow-lg">
+                          {/* Order header */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-secondary/10 bg-surface/50 px-5 py-4 md:px-6">
+                            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">
+                                Order #
+                                {order.orderMaster?.ordersMasterId ?? index + 1}
+                              </span>
+                              <span className="flex items-center gap-1.5 text-xs text-secondary/60">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {formatDate(order.orderMaster.createdAt)}
+                              </span>
+                              {order.orderMaster.method && (
+                                <span className="flex items-center gap-1.5 text-xs text-secondary/60">
+                                  <CreditCard className="h-3.5 w-3.5" />
+                                  {methodLabel[order.orderMaster.method] ||
+                                    order.orderMaster.method}
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              className={`border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] ${statusStyle(
+                                order.orderMaster.status
+                              )}`}
+                            >
+                              {order.orderMaster.status}
+                            </span>
+                          </div>
+
+                          {/* Items */}
+                          <div className="px-5 py-4 md:px-6">
+                            {order.orderDetails &&
+                            order.orderDetails.length > 0 ? (
+                              <ul className="divide-y divide-secondary/5">
+                                {order.orderDetails.map(
+                                  (item: any, idx: number) => (
+                                    <li
+                                      key={idx}
+                                      className="flex items-center justify-between gap-4 py-2.5 text-sm"
+                                    >
+                                      <span className="text-secondary">
+                                        {item.productName || 'Product'}
+                                      </span>
+                                      <span className="shrink-0 text-secondary/60">
+                                        × {item.quantity}
+                                      </span>
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            ) : (
+                              <p className="py-2 text-sm text-secondary/40">
+                                No items
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Total */}
+                          <div className="flex items-center justify-between border-t border-secondary/10 px-5 py-4 md:px-6">
+                            <span className="text-[11px] uppercase tracking-[0.2em] text-secondary/50">
+                              Total amount
+                            </span>
+                            <span className="text-lg font-semibold text-primary">
+                              ৳
+                              {Math.round(
+                                order.orderMaster.totalAmount
+                              ).toLocaleString('en-US')}
+                            </span>
+                          </div>
+                        </article>
+                      </Reveal>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         </div>
       </div>
     </div>

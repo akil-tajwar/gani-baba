@@ -7,7 +7,8 @@ import type { Config } from 'tailwindcss'
  * CSS variables defined in app/globals.css:
  *
  *    --primary-color     (buttons, links, prices, highlights)
- *    --secondary-color   (header strip, footer, dashboard sidebar)
+ *    --secondary-color   (header, footer, dashboard sidebar)
+ *    --surface-color     (soft beige panels: hero, tiles, banners)
  *
  * Change those two hex values and every shade below follows.
  */
@@ -60,6 +61,10 @@ export default {
         foreground: 'var(--foreground)',
         primary: scale('--primary-color'),
         secondary: scale('--secondary-color'),
+        surface: {
+          DEFAULT: withAlpha('var(--surface-color)'),
+          dark: withAlpha(mix('--surface-color', 'black', 94)),
+        },
         sidebar: {
           DEFAULT: withAlpha('var(--secondary-color)'),
           foreground: '#ffffff',
@@ -85,6 +90,14 @@ export default {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
+        fadeUp: {
+          from: { opacity: '0', transform: 'translateY(22px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        zoomOut: {
+          from: { transform: 'scale(1.12)' },
+          to: { transform: 'scale(1)' },
+        },
         slideDown: {
           from: { opacity: '0', transform: 'translateY(-6px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
@@ -93,6 +106,8 @@ export default {
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        fadeUp: 'fadeUp 0.9s cubic-bezier(0.22,1,0.36,1) both',
+        zoomOut: 'zoomOut 7s ease-out both',
         slideDown: 'slideDown 0.18s ease-out',
         slideDownFast: 'slideDown 0.12s ease-out',
       },

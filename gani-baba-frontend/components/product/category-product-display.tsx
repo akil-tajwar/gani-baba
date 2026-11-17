@@ -5,6 +5,8 @@ import { SlidersHorizontal } from 'lucide-react'
 import type { GetProductType } from '@/utils/type'
 import ProductCard from './product-card'
 import { formatTaka } from '@/utils/constants'
+import { WaveLine } from '@/components/shared/section-heading'
+import { Reveal } from '@/hooks/use-reveal'
 
 interface CategoryProductsDisplayProps {
   /** Page title shown in the banner (e.g. "Commode", "All Products") */
@@ -143,7 +145,7 @@ export default function CategoryProductsDisplay({
     <aside className="space-y-6">
       {showCategoryFilter && categoryOptions.length > 0 && (
         <div>
-          <h3 className="font-semibold text-secondary mb-3">Category</h3>
+          <h3 className="text-xs uppercase tracking-[0.22em] font-semibold text-secondary mb-3">Category</h3>
           <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
             {categoryOptions.map((c) => (
               <li key={c.id}>
@@ -166,7 +168,7 @@ export default function CategoryProductsDisplay({
       )}
 
       <div>
-        <h3 className="font-semibold text-secondary mb-3">Brand</h3>
+        <h3 className="text-xs uppercase tracking-[0.22em] font-semibold text-secondary mb-3">Brand</h3>
         {brandOptions.length === 0 ? (
           <p className="text-sm text-gray-400">No brands</p>
         ) : (
@@ -190,7 +192,7 @@ export default function CategoryProductsDisplay({
       </div>
 
       <div>
-        <h3 className="font-semibold text-secondary mb-3">Price (৳)</h3>
+        <h3 className="text-xs uppercase tracking-[0.22em] font-semibold text-secondary mb-3">Price (৳)</h3>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -234,14 +236,15 @@ export default function CategoryProductsDisplay({
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Banner */}
-      <div className="bg-secondary text-white py-10 md:py-14">
-        <div className="container mx-auto px-4">
-          <h1 className="text-3xl md:text-5xl font-bold uppercase tracking-wide">
+      <div className="bg-surface">
+        <div className="container mx-auto px-4 md:px-8 py-12 md:py-16 animate-fadeUp">
+          <WaveLine className="text-primary mb-4" />
+          <h1 className="text-3xl md:text-5xl font-semibold uppercase tracking-[0.25em] text-secondary">
             {categoryType}
           </h1>
-          <p className="mt-2 text-primary-100 text-sm md:text-base">
+          <p className="mt-3 text-xs md:text-sm uppercase tracking-[0.22em] text-secondary/60">
             {products.length} {products.length === 1 ? 'product' : 'products'}
           </p>
         </div>
@@ -250,7 +253,7 @@ export default function CategoryProductsDisplay({
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Filters — desktop */}
-          <div className="hidden lg:block w-64 shrink-0 bg-white border rounded-lg p-5 h-fit">
+          <div className="hidden lg:block w-64 shrink-0 bg-surface p-6 h-fit lg:sticky lg:top-24">
             {FilterPanel}
           </div>
 
@@ -305,9 +308,11 @@ export default function CategoryProductsDisplay({
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                {visibleProducts.map((product) => (
-                  <ProductCard key={product.productId} product={product} />
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 md:gap-x-6">
+                {visibleProducts.map((product, i) => (
+                  <Reveal key={product.productId} delay={(i % 4) * 70}>
+                    <ProductCard product={product} />
+                  </Reveal>
                 ))}
               </div>
             )}

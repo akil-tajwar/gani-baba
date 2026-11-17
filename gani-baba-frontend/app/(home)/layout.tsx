@@ -1,12 +1,15 @@
 import '.././globals.css'
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Poppins } from 'next/font/google'
 import { Toaster } from '@/components/ui/toaster'
 import { ReactQueryProvider } from '@/provider/react-query-provider'
 import Footer from '@/components/shared/footer'
 import LayoutClientWrapper from './layout-client-wrapper'
 
-const inter = Inter({ subsets: ['latin'] })
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+})
 
 export const metadata: Metadata = {
   title: 'Gani Baba',
@@ -26,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={poppins.className}>
         <ReactQueryProvider>
           <LayoutClientWrapper>
             <main className="min-h-[60vh]">{children}</main>

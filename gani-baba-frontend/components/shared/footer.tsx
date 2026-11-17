@@ -9,18 +9,15 @@ export default function Footer() {
   const { social } = siteConfig
 
   return (
-    <footer className="bg-secondary text-white mt-12 sm:mt-16">
+    <footer className="bg-secondary text-white mt-20 md:mt-28">
       <div className="container mx-auto px-4 py-10 sm:py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {/* About */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="w-9 h-9 rounded-lg bg-primary text-white font-extrabold flex items-center justify-center">
-                {siteConfig.name.charAt(0)}
-              </span>
-              <span className="text-xl font-extrabold">{siteConfig.name}</span>
-            </div>
-            <p className="text-sm text-primary-100/80">{siteConfig.tagline}</p>
+            <p className="text-2xl font-light uppercase tracking-[0.35em] mb-4">
+              {siteConfig.name}
+            </p>
+            <p className="text-sm text-white/65">{siteConfig.tagline}</p>
 
             <div className="flex gap-3 items-center mt-6">
               <Link
@@ -28,21 +25,21 @@ export default function Footer() {
                 target="_blank"
                 aria-label="WhatsApp"
               >
-                <FaWhatsapp className="w-8 h-8 text-white p-1.5 rounded-lg bg-primary hover:bg-primary-500 transition" />
+                <FaWhatsapp className="w-9 h-9 text-white p-2 border border-white/30 hover:bg-primary hover:border-primary hover:-translate-y-0.5 transition" />
               </Link>
               {social.facebook && (
                 <Link href={social.facebook} target="_blank" aria-label="Facebook">
-                  <FaFacebookF className="w-8 h-8 text-white p-1.5 rounded-lg bg-primary hover:bg-primary-500 transition" />
+                  <FaFacebookF className="w-9 h-9 text-white p-2 border border-white/30 hover:bg-primary hover:border-primary hover:-translate-y-0.5 transition" />
                 </Link>
               )}
               {social.instagram && (
                 <Link href={social.instagram} target="_blank" aria-label="Instagram">
-                  <FaInstagram className="w-8 h-8 text-white p-1.5 rounded-lg bg-primary hover:bg-primary-500 transition" />
+                  <FaInstagram className="w-9 h-9 text-white p-2 border border-white/30 hover:bg-primary hover:border-primary hover:-translate-y-0.5 transition" />
                 </Link>
               )}
               {social.youtube && (
                 <Link href={social.youtube} target="_blank" aria-label="YouTube">
-                  <FaYoutube className="w-8 h-8 text-white p-1.5 rounded-lg bg-primary hover:bg-primary-500 transition" />
+                  <FaYoutube className="w-9 h-9 text-white p-2 border border-white/30 hover:bg-primary hover:border-primary hover:-translate-y-0.5 transition" />
                 </Link>
               )}
             </div>
@@ -50,22 +47,22 @@ export default function Footer() {
 
           {/* Shop */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Shop</h3>
-            <ul className="space-y-2 text-sm text-primary-100/80">
+            <h3 className="text-xs uppercase tracking-[0.25em] font-semibold mb-5 text-white">Shop</h3>
+            <ul className="space-y-2 text-sm text-white/65">
               <li>
-                <Link href="/men-products" className="hover:text-white transition">
+                <Link href="/men-products" className="hover:text-white hover:pl-1 transition-all">
                   All Products
                 </Link>
               </li>
               <li>
-                <Link href="/kids-products" className="hover:text-white transition">
+                <Link href="/kids-products" className="hover:text-white hover:pl-1 transition-all">
                   All Brands
                 </Link>
               </li>
               <li>
                 <Link
                   href="/flash-sale-products"
-                  className="hover:text-white transition"
+                  className="hover:text-white hover:pl-1 transition-all"
                 >
                   Special Offers
                 </Link>
@@ -75,15 +72,15 @@ export default function Footer() {
 
           {/* My account */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">My Account</h3>
-            <ul className="space-y-2 text-sm text-primary-100/80">
+            <h3 className="text-xs uppercase tracking-[0.25em] font-semibold mb-5 text-white">My Account</h3>
+            <ul className="space-y-2 text-sm text-white/65">
               <li>
-                <Link href="/profile" className="hover:text-white transition">
+                <Link href="/profile" className="hover:text-white hover:pl-1 transition-all">
                   Profile &amp; Order History
                 </Link>
               </li>
               <li>
-                <Link href="/checkout" className="hover:text-white transition">
+                <Link href="/checkout" className="hover:text-white hover:pl-1 transition-all">
                   Checkout
                 </Link>
               </li>
@@ -92,8 +89,8 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Contact</h3>
-            <ul className="space-y-3 text-sm text-primary-100/80">
+            <h3 className="text-xs uppercase tracking-[0.25em] font-semibold mb-5 text-white">Contact</h3>
+            <ul className="space-y-3 text-sm text-white/65">
               <li className="flex gap-2">
                 <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
                 {siteConfig.address}
@@ -114,8 +111,8 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-white/10 mt-10 pt-6 text-center">
-          <p className="text-sm text-primary-100/70">
+        <div className="border-t border-white/10 mt-12 pt-6 text-center">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">
             &copy; {new Date().getFullYear()} {siteConfig.name}. All rights
             reserved.
           </p>

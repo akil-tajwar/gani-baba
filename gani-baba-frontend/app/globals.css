@@ -6,19 +6,40 @@
    BRAND COLORS  ←  change ONLY these two lines to re-colour the site
    ===================================================================== */
 :root {
-  --primary-color: #1d4ed8; /* main brand color  (blue)            */
-  --secondary-color: #0b1f3a; /* dark accent color (header / footer) */
+  --primary-color: #044247; /* main brand color  (blue): accents, buttons, links */
+  --secondary-color: #313130; /* dark color: header, footer, dashboard sidebar     */
+  --surface-color: #fae5c7; /* soft background panels (hero, tiles, banners)     */
 }
 
 body {
   font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
 @layer base {
   :root {
-    --background: #ffffff;
+    /* page background: a light tint of --surface-color (raise 35% for a deeper beige) */
+    --background: #fff4e5;
     --foreground: #0f172a;
     --radius: 0.5rem;
+  }
+}
+
+/* ---------- scroll reveal (see hooks/use-reveal.tsx) ---------- */
+@layer components {
+  .reveal {
+    transition-property: opacity, transform;
+    transition-duration: 800ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      transition: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
   }
 }
 

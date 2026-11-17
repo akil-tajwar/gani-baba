@@ -10,6 +10,8 @@ import type { GetBrandType, GetProductType } from '@/utils/type'
 import { useAtom } from 'jotai'
 import { tokenAtom, useInitializeUser } from '@/utils/user'
 import Loader from '@/utils/loader'
+import { WaveLine } from '@/components/shared/section-heading'
+import { Reveal } from '@/hooks/use-reveal'
 
 export default function AllBrands() {
   useInitializeUser()
@@ -51,39 +53,39 @@ export default function AllBrands() {
   if (error) return <p className="text-center text-red-500 py-16">{error}</p>
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-secondary text-white py-10 md:py-14">
-        <div className="container mx-auto px-4">
-          <h1 className="text-3xl md:text-5xl font-bold uppercase tracking-wide">
+    <div className="min-h-screen bg-white">
+      <div className="bg-surface">
+        <div className="container mx-auto px-4 md:px-8 py-12 md:py-16 animate-fadeUp">
+          <WaveLine className="text-primary mb-4" />
+          <h1 className="text-3xl md:text-5xl font-semibold uppercase tracking-[0.25em] text-secondary">
             All Brands
           </h1>
-          <p className="mt-2 text-primary-100 text-sm md:text-base">
+          <p className="mt-3 text-xs md:text-sm uppercase tracking-[0.22em] text-secondary/60">
             {brands.length} trusted brands
           </p>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-10">
+      <div className="container mx-auto px-4 md:px-8 py-12">
         {brands.length === 0 ? (
           <p className="text-center text-gray-500 py-16">No brands yet.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {brands.map((brand) => (
-              <Link
-                key={brand.brandId}
-                href={`/men-products?brand=${brand.brandId}`}
-                className="group bg-white border rounded-lg p-6 text-center hover:border-primary hover:shadow-md transition"
-              >
-                <div className="mx-auto mb-3 w-14 h-14 rounded-full bg-primary-50 text-primary flex items-center justify-center text-xl font-bold group-hover:bg-primary group-hover:text-white transition">
-                  {brand.name.charAt(0).toUpperCase()}
-                </div>
-                <p className="font-semibold text-secondary line-clamp-1">
-                  {brand.name}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {countFor(brand.brandId)} products
-                </p>
-              </Link>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {brands.map((brand, i) => (
+              <Reveal key={brand.brandId} delay={(i % 5) * 70}>
+                <Link
+                  href={`/men-products?brand=${brand.brandId}`}
+                  className="group relative block bg-surface px-4 py-9 text-center transition-colors duration-500 hover:bg-secondary"
+                >
+                  <p className="text-sm uppercase tracking-[0.2em] font-medium text-secondary group-hover:text-white transition-colors line-clamp-1">
+                    {brand.name}
+                  </p>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-secondary/50 group-hover:text-white/60 mt-2 transition-colors">
+                    {countFor(brand.brandId)} products
+                  </p>
+                  <span className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary group-hover:w-full transition-all duration-500" />
+                </Link>
+              </Reveal>
             ))}
           </div>
         )}
