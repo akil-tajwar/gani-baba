@@ -76,7 +76,6 @@ export const categorySchema = z.object({
   categoryId: z.number().int().optional(),
   name: z.string().min(1, 'Name is required').max(100),
 })
-
 export type CreateCategoryType = z.infer<typeof categorySchema>
 export type GetCategoryType = z.infer<typeof categorySchema>
 
@@ -84,9 +83,29 @@ export const brandSchema = z.object({
   brandId: z.number().int().optional(),
   name: z.string().min(1, 'Name is required').max(100),
 })
-
 export type CreateBrandType = z.infer<typeof brandSchema>
 export type GetBrandType = z.infer<typeof brandSchema>
+
+export const couponTypeSchema = z.enum(["amount", "percentage"]);
+export type CouponType = z.infer<typeof couponTypeSchema>;
+
+export const couponSchema = z.object({
+  couponId: z.number().int().positive(),
+  code: z.string().min(1).max(50),
+  couponType: z.enum(["amount", "percentage"]),
+  discount: z.number().int(),
+  maxDiscount: z.number().int().nullable(),
+  minimumOrder: z.number().int().min(0),
+  fromDate: z.string(),
+  toDate: z.string().nullable(),
+  isActive: z.boolean(),
+  createdBy: z.number().int().positive(),
+  createdAt: z.date().nullable(),
+  updatedBy: z.number().int().positive().nullable(),
+  updatedAt: z.date().nullable(),
+});
+export type CreateCouponType = z.infer<typeof couponSchema>
+export type GetCouponType = z.infer<typeof couponSchema>
 
 // Body sent (as JSON string in the `product` form field) when creating / updating
 export const productSchema = z.object({

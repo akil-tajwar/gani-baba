@@ -13,6 +13,8 @@ import {
   SignInRequest,
   SignInResponse,
   GetUsersType,
+  CreateCouponType,
+  GetCouponType,
 } from '@/utils/type'
 
 export async function registerUser(credentials: RegisterRequest) {
@@ -91,7 +93,7 @@ export async function createCategory(token: string, data: CreateCategoryType) {
 }
 
 // ---------------------------------------------------------------------
-// Brands  (backend route: /api/brands — same shape as /api/categories)
+// Brands
 // ---------------------------------------------------------------------
 export async function createBrand(token: string, data: CreateBrandType) {
   return fetchApi<CreateBrandType>({
@@ -126,6 +128,47 @@ export async function updateBrand(
 export async function deleteBrand(id: number, token: string) {
   return fetchApi<{ id: number }>({
     url: `api/brands/delete/${id}`,
+    method: 'DELETE',
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
+  })
+}
+
+// ---------------------------------------------------------------------
+// Coupons
+// ---------------------------------------------------------------------
+export async function createCoupon(token: string, data: CreateCouponType) {
+  return fetchApi<CreateCouponType>({
+    url: 'api/coupons/create',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `${token}` },
+    body: data,
+  })
+}
+
+export async function fetchCoupons(token: string) {
+  return fetchApi<GetCouponType[]>({
+    url: 'api/coupons/get',
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: `${token}` },
+  })
+}
+
+export async function updateCoupon(
+  token: string,
+  id: number,
+  data: Partial<GetCouponType>
+) {
+  return fetchApi<GetCouponType>({
+    url: `api/coupons/update/${id}`,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `${token}` },
+    body: data,
+  })
+}
+
+export async function deleteCoupon(id: number, token: string) {
+  return fetchApi<{ id: number }>({
+    url: `api/coupons/delete/${id}`,
     method: 'DELETE',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
   })

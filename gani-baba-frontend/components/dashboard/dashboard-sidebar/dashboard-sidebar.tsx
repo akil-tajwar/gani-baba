@@ -13,6 +13,7 @@ import {
   Plus,
   Settings,
   SquarePlus,
+  TicketCheck,
   UserCog,
 } from 'lucide-react'
 
@@ -59,6 +60,11 @@ export function DashboardSidebar() {
       title: 'Products',
       icon: BriefcaseBusiness,
       href: '/dashboard/products',
+    },
+    {
+      title: 'Coupons',
+      icon: TicketCheck,
+      href: '/dashboard/coupons',
     },
     {
       title: 'Orders To Confirm',
