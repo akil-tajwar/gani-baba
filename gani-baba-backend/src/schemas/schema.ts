@@ -1,8 +1,8 @@
 import { relations } from "drizzle-orm";
 import {
   boolean,
+  date,
   integer,
-  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -24,6 +24,8 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "nagad",
   "rocket",
 ]);
+
+export const couponTypeEnum = pgEnum("coupon_type", ["amount", "percentage"]);
 
 // ================= ROLES =================
 export const roleModel = pgTable("roles", {
@@ -111,7 +113,12 @@ export const brandsModel = pgTable("brands", {
 export const couponsModel = pgTable("coupons", {
   couponId: serial("coupon_id").primaryKey(),
   code: varchar("code", { length: 50 }).notNull().unique(),
+  couponType: couponTypeEnum("coupon_type").notNull().default("amount"),
   discount: integer("discount").notNull(),
+  maxDiscount: integer("max_discount"),
+  minimumOrder: integer("minimum_order").notNull().default(0),
+  fromDate: date("from_date").notNull(),
+  toDate: date("to_date"),
   isActive: boolean("is_active").notNull().default(true),
   createdBy: integer("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -297,6 +304,8 @@ export type Category = typeof categoriesModel.$inferSelect;
 export type NewCategory = typeof categoriesModel.$inferInsert;
 export type Brand = typeof brandsModel.$inferSelect;
 export type NewBrand = typeof brandsModel.$inferInsert;
+export type Coupon = typeof couponsModel.$inferSelect;
+export type NewCoupon = typeof couponsModel.$inferInsert;
 export type Product = typeof productsModel.$inferSelect;
 export type NewProduct = typeof productsModel.$inferInsert;
 export type OrdersMaster = typeof ordersMasterModel.$inferSelect;
