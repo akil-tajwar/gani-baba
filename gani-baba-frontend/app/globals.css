@@ -6,7 +6,7 @@
    BRAND COLORS  ←  change ONLY these two lines to re-colour the site
    ===================================================================== */
 :root {
-  --primary-color: #044247; /* main brand color  (blue): accents, buttons, links */
+  --primary-color: #05465a; /* main brand color  (blue): accents, buttons, links */
   --secondary-color: #313130; /* dark color: header, footer, dashboard sidebar     */
   --surface-color: #fae5c7; /* soft background panels (hero, tiles, banners)     */
 }

@@ -25,6 +25,7 @@ import { tokenAtom } from '@/utils/user'
 import type { GetBrandType, GetCategoryType } from '@/utils/type'
 import { useCart } from '@/hooks/use-cart'
 import { siteConfig } from '@/utils/constants'
+import Image from 'next/image'
 
 interface NavbarProps {
   searchQuery: string
@@ -157,9 +158,16 @@ export default function Navbar({
             {/* Logo (text wordmark — swap for <Image src="/logo.png" /> if you have one) */}
             <Link
               href="/"
-              className="text-xl md:text-2xl font-light uppercase tracking-[0.35em] text-white shrink-0"
+              className="text-xl md:text-2xl font-light uppercase tracking-[0.35em] text-surface shrink-0"
             >
-              {siteConfig.name}
+              {/* {siteConfig.name} */}
+              <Image
+                height={50}
+                width={50}
+                src={'/logo3.png'}
+                alt={'gani baba logo'}
+                className="w-"
+              />
             </Link>
 
             {/* Desktop nav */}
@@ -197,7 +205,9 @@ export default function Navbar({
                           Shop by category
                         </h4>
                         {categories.length === 0 ? (
-                          <p className="text-sm text-gray-400">No categories yet</p>
+                          <p className="text-sm text-gray-400">
+                            No categories yet
+                          </p>
                         ) : (
                           <ul className="grid grid-cols-2 gap-x-6 gap-y-1 max-h-72 overflow-y-auto pr-2">
                             {categories.map((cat) => (
@@ -245,7 +255,11 @@ export default function Navbar({
               </div>
 
               {navLinks.slice(1).map((link) => (
-                <Link key={link.href} href={link.href} className={linkClass(link.href)}>
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={linkClass(link.href)}
+                >
                   {link.label}
                 </Link>
               ))}
@@ -260,7 +274,9 @@ export default function Navbar({
                   className="group hidden md:flex items-center gap-3 w-44 border-b border-white/30 pb-1 text-white/60 hover:border-primary-300 hover:text-white transition-colors"
                 >
                   <Search className="w-4 h-4 text-primary-300" />
-                  <span className="text-xs tracking-[0.15em] uppercase">Search</span>
+                  <span className="text-xs tracking-[0.15em] uppercase">
+                    Search
+                  </span>
                 </button>
               )}
               {!shouldHideSearch && (
@@ -302,7 +318,9 @@ export default function Navbar({
                     </>
                   ) : (
                     <>
-                      <DropdownMenuItem disabled>Hi, {currentUser}</DropdownMenuItem>
+                      <DropdownMenuItem disabled>
+                        Hi, {currentUser}
+                      </DropdownMenuItem>
                       {roleId === 1 && (
                         <DropdownMenuItem
                           onClick={() => router.push('/dashboard/categories')}
@@ -346,7 +364,10 @@ export default function Navbar({
           <h2 className="text-lg font-light uppercase tracking-[0.3em]">
             {siteConfig.name}
           </h2>
-          <button onClick={() => setIsSidebarOpen(false)} aria-label="Close menu">
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            aria-label="Close menu"
+          >
             <X className="w-6 h-6" strokeWidth={1.4} />
           </button>
         </div>

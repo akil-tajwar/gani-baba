@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,9 @@ import {
   DollarSign,
   FileSliders,
   Banknote,
+  Ticket,
+  Tag,
+  Check,
 } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -20,11 +23,25 @@ import { toast } from '@/hooks/use-toast'
 import { CustomCombobox } from '@/utils/custom-combobox'
 import { useCart } from '@/hooks/use-cart'
 import { locationData, siteConfig } from '@/utils/constants'
-import { createOrder, getUserByUserId } from '@/utils/api'
+import { createOrder, fetchCoupons, getUserByUserId } from '@/utils/api'
 import { useAtom } from 'jotai'
 import { tokenAtom, useInitializeUser, userDataAtom } from '@/utils/user'
-import { GetUsersType } from '@/utils/type'
-import Loader from '@/utils/loader'
+import { GetCouponType, GetUsersType } from '@/utils/type'
+
+/** Today as YYYY-MM-DD (local date, no time) */
+const todayStr = () => {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Normalise a date string (handles "YYYY-MM-DD" and full ISO) to YYYY-MM-DD */
+const toDateOnly = (s: string | null | undefined) => {
+  if (!s) return null
+  return s.length >= 10 ? s.slice(0, 10) : s
+}
 
 export default function CheckoutPage() {
   useInitializeUser()
@@ -50,7 +67,98 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const { cartItems, clearCart } = useCart()
-  
+
+  // ---------------- Coupon state ----------------
+  const [coupons, setCoupons] = useState<GetCouponType[]>([])
+  const [couponsLoading, setCouponsLoading] = useState(true)
+  const [selectedCouponId, setSelectedCouponId] = useState<number | null>(null)
+
+  // ---- subtotal (before discount) ----
+  const subtotal = useMemo(
+    () =>
+      cartItems.reduce((total, item) => total + item.price * item.quantity, 0),
+    [cartItems]
+  )
+
+  // ---- eligible coupons (date + active check) ----
+  // minimumOrder is checked separately per-card so we can show disabled state.
+  const eligibleCoupons = useMemo(() => {
+    const today = todayStr()
+    return coupons.filter((c) => {
+      if (!c.isActive) return false
+      const from = toDateOnly(c.fromDate)
+      const to = toDateOnly(c.toDate)
+      if (!from) return false
+      if (today < from) return false // not started yet
+      if (to && today > to) return false // expired
+      return true
+    })
+  }, [coupons])
+
+  // ---- selected coupon ----
+  const selectedCoupon = useMemo(
+    () => eligibleCoupons.find((c) => c.couponId === selectedCouponId) || null,
+    [eligibleCoupons, selectedCouponId]
+  )
+
+  // If selected coupon becomes ineligible (e.g. cart drops below minOrder), clear it
+  useEffect(() => {
+    if (!selectedCoupon) {
+      setSelectedCouponId(null)
+      return
+    }
+    if (subtotal < selectedCoupon.minimumOrder) {
+      setSelectedCouponId(null)
+    }
+  }, [subtotal, selectedCoupon])
+
+  // ---- discount calculation ----
+  const discountAmount = useMemo(() => {
+    if (!selectedCoupon) return 0
+    if (subtotal < selectedCoupon.minimumOrder) return 0
+
+    let amount = 0
+    if (selectedCoupon.couponType === 'amount') {
+      amount = selectedCoupon.discount
+    } else {
+      // percentage
+      amount = (subtotal * selectedCoupon.discount) / 100
+      if (
+        selectedCoupon.maxDiscount != null &&
+        amount > selectedCoupon.maxDiscount
+      ) {
+        amount = selectedCoupon.maxDiscount
+      }
+    }
+    // never exceed subtotal
+    return Math.min(Math.round(amount), Math.round(subtotal))
+  }, [selectedCoupon, subtotal])
+
+  const grandTotal = useMemo(
+    () => Math.max(0, Math.round(subtotal) - discountAmount),
+    [subtotal, discountAmount]
+  )
+
+  // ---- fetch coupons ----
+  useEffect(() => {
+    const loadCoupons = async () => {
+      if (!token) {
+        setCouponsLoading(false)
+        return
+      }
+      try {
+        setCouponsLoading(true)
+        const res = await fetchCoupons(token)
+        setCoupons(res.data ?? [])
+      } catch (err) {
+        console.error('Failed to load coupons:', err)
+      } finally {
+        setCouponsLoading(false)
+      }
+    }
+    loadCoupons()
+  }, [token])
+
   // Fetch user info and populate form when userData.userId is available
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -62,7 +170,6 @@ export default function CheckoutPage() {
         const userInfo: GetUsersType | null = response.data
 
         if (userInfo) {
-          // Populate form with user data
           setFormData((prev) => ({
             ...prev,
             fullName: userInfo.fullName || '',
@@ -72,8 +179,6 @@ export default function CheckoutPage() {
             division: userInfo.division || '',
             district: userInfo.district || '',
           }))
-
-          console.log('✅ User info loaded:', userInfo)
         }
       } catch (error) {
         console.error('Failed to fetch user info:', error)
@@ -92,14 +197,6 @@ export default function CheckoutPage() {
 
   const isCod = formData.method === 'cod'
 
-  // Calculate total
-  const getTotalPrice = () => {
-    return cartItems.reduce(
-      (total, item) => total + item.price * item.quantity,
-      0
-    )
-  }
-
   // Get available districts based on selected division
   const getAvailableDistricts = () => {
     if (!formData.division) return []
@@ -110,7 +207,6 @@ export default function CheckoutPage() {
     )
   }
 
-  // Handle division change
   const handleDivisionChange = (value: { id: string; name: string } | null) => {
     setFormData({
       ...formData,
@@ -120,7 +216,6 @@ export default function CheckoutPage() {
     setErrors({ ...errors, division: '' })
   }
 
-  // Handle district change
   const handleDistrictChange = (value: { id: string; name: string } | null) => {
     setFormData({
       ...formData,
@@ -129,7 +224,6 @@ export default function CheckoutPage() {
     setErrors({ ...errors, district: '' })
   }
 
-  // Validate form
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
@@ -155,7 +249,6 @@ export default function CheckoutPage() {
     return Object.keys(newErrors).length === 0
   }
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -180,7 +273,6 @@ export default function CheckoutPage() {
     setIsLoading(true)
 
     try {
-      // Prepare payload in the shape backend expects
       const payload = {
         orderMaster: {
           fullName: formData.fullName,
@@ -193,8 +285,12 @@ export default function CheckoutPage() {
           method: formData.method,
           billingPhone: isCod ? formData.phone : formData.billingPhone,
           transactionId: isCod ? '' : formData.transactionId,
-          totalAmount: Math.round(getTotalPrice()),
+          totalAmount: grandTotal, // ← discounted total
           userId: userData?.userId || null,
+          // Optional — include if your backend stores them:
+          couponId: selectedCoupon?.couponId ?? null,
+          couponCode: selectedCoupon?.code ?? null,
+          discountAmount,
         },
         orderDetails: cartItems.map((item) => ({
           productId: item.productId,
@@ -203,13 +299,8 @@ export default function CheckoutPage() {
         })),
       }
 
-      // Send JSON, not FormData
-      const response = await createOrder(token, payload)
-
-      // toast.success('Order placed successfully!')
+      await createOrder(token, payload)
       router.push('/thank-you')
-
-      // Clear the cart using the hook method
       clearCart()
     } catch (error) {
       console.error('Order error:', error)
@@ -453,8 +544,8 @@ export default function CheckoutPage() {
                   <h3 className="font-semibold text-gray-900 mb-1">
                     Cash on Delivery
                   </h3>
-                  Pay in cash when your order arrives. Our team will call you
-                  to confirm the order and delivery time.
+                  Pay in cash when your order arrives. Our team will call you to
+                  confirm the order and delivery time.
                 </div>
               ) : (
                 <div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -467,12 +558,17 @@ export default function CheckoutPage() {
                       <li>
                         Scan the QR code or use the number (personal):{' '}
                         <span className="font-semibold">
-                          {siteConfig.payment[formData.method as 'bkash' | 'nagad' | 'rocket']}
+                          {
+                            siteConfig.payment[
+                              formData.method as 'bkash' | 'nagad' | 'rocket'
+                            ]
+                          }
                         </span>
                       </li>
                       <li>
-                        Pay (send money) at least {siteConfig.payment.advanceAmount}{' '}
-                        tk to confirm your order
+                        Pay (send money) at least{' '}
+                        {siteConfig.payment.advanceAmount} tk to confirm your
+                        order
                       </li>
                       <li>Enter the Transaction ID</li>
                     </ol>
@@ -589,61 +685,67 @@ export default function CheckoutPage() {
 
               {!isCod && (
                 <>
-              <div className="my-6">
-                <Label
-                  htmlFor="billingPhone"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Billing Phone Number <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative mt-1">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    id="billingPhone"
-                    value={formData.billingPhone}
-                    onChange={(e) => {
-                      setFormData({ ...formData, billingPhone: e.target.value })
-                      setErrors({ ...errors, billingPhone: '' })
-                    }}
-                    className={`pl-10 ${errors.billingPhone ? 'border-red-500' : ''}`}
-                    placeholder="01XXXXXXXXX"
-                    disabled={userInfoLoading}
-                  />
-                </div>
-                {errors.billingPhone && (
-                  <p className="text-red-500 text-xs mt-1">{errors.billingPhone}</p>
-                )}
-              </div>
+                  <div className="my-6">
+                    <Label
+                      htmlFor="billingPhone"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Billing Phone Number{' '}
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative mt-1">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="billingPhone"
+                        value={formData.billingPhone}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            billingPhone: e.target.value,
+                          })
+                          setErrors({ ...errors, billingPhone: '' })
+                        }}
+                        className={`pl-10 ${errors.billingPhone ? 'border-red-500' : ''}`}
+                        placeholder="01XXXXXXXXX"
+                        disabled={userInfoLoading}
+                      />
+                    </div>
+                    {errors.billingPhone && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.billingPhone}
+                      </p>
+                    )}
+                  </div>
 
-              <div>
-                <Label
-                  htmlFor="transactionId"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Transaction ID <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <FileSliders className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    id="transactionId"
-                    value={formData.transactionId}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        transactionId: e.target.value,
-                      })
-                      setErrors({ ...errors, transactionId: '' })
-                    }}
-                    className={`mt-1 pl-10 ${errors.transactionId ? 'border-red-500' : ''}`}
-                    placeholder="Enter transaction ID"
-                  />
-                </div>
-                {errors.transactionId && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.transactionId}
-                  </p>
-                )}
-              </div>
+                  <div>
+                    <Label
+                      htmlFor="transactionId"
+                      className="text-sm font-medium text-gray-700"
+                    >
+                      Transaction ID <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <FileSliders className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="transactionId"
+                        value={formData.transactionId}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            transactionId: e.target.value,
+                          })
+                          setErrors({ ...errors, transactionId: '' })
+                        }}
+                        className={`mt-1 pl-10 ${errors.transactionId ? 'border-red-500' : ''}`}
+                        placeholder="Enter transaction ID"
+                      />
+                    </div>
+                    {errors.transactionId && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.transactionId}
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -658,7 +760,7 @@ export default function CheckoutPage() {
               </h2>
 
               <div className="max-h-96 overflow-y-auto space-y-4 mb-6">
-                {cartItems.map((item, index) => (
+                {cartItems.map((item) => (
                   <div
                     key={item.productId}
                     className="flex items-start space-x-3 bg-gray-50 border border-gray-200 p-3 rounded-lg relative"
@@ -692,20 +794,127 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+              {/* ===== COUPON SECTION ===== */}
+              <div className="border-t border-gray-200 pt-4 mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Ticket className="w-5 h-5 text-primary" />
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Apply Coupon
+                  </h3>
+                </div>
+
+                {couponsLoading ? (
+                  <p className="text-sm text-gray-500">
+                    Loading available coupons...
+                  </p>
+                ) : eligibleCoupons.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No coupons available right now.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {eligibleCoupons.map((coupon) => {
+                      const belowMin = subtotal < coupon.minimumOrder
+                      const isSelected = selectedCouponId === coupon.couponId
+                      return (
+                        <button
+                          type="button"
+                          key={coupon.couponId}
+                          disabled={belowMin}
+                          onClick={() =>
+                            setSelectedCouponId(
+                              isSelected ? null : coupon.couponId
+                            )
+                          }
+                          className={`w-full text-left rounded-lg border-2 p-3 transition-all ${
+                            belowMin
+                              ? 'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed'
+                              : isSelected
+                                ? 'border-primary bg-primary-50 shadow-md'
+                                : 'border-gray-200 bg-white hover:border-primary/50 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <Tag
+                                className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                                  isSelected ? 'text-primary' : 'text-gray-400'
+                                }`}
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-bold text-gray-900">
+                                    {coupon.code}
+                                  </span>
+                                  {isSelected && (
+                                    <Check className="w-4 h-4 text-primary" />
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  {coupon.couponType === 'amount'
+                                    ? `৳${coupon.discount} off`
+                                    : `${coupon.discount}% off${
+                                        coupon.maxDiscount != null
+                                          ? ` (max ৳${coupon.maxDiscount})`
+                                          : ''
+                                      }`}
+                                  {coupon.minimumOrder > 0
+                                    ? ` • Min order ৳${coupon.minimumOrder}`
+                                    : ''}
+                                </p>
+                                {belowMin && (
+                                  <p className="text-[11px] text-red-500 mt-1">
+                                    Add ৳
+                                    {coupon.minimumOrder - Math.round(subtotal)}{' '}
+                                    more to use this coupon
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {selectedCoupon && (
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className="text-green-700 font-medium">
+                      Coupon applied: {selectedCoupon.code}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCouponId(null)}
+                      className="text-xs text-red-600 underline hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* ===== /COUPON SECTION ===== */}
+
               <div className="border-t border-gray-200 pt-4 space-y-3">
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Subtotal</span>
-                  <span>৳{Math.round(getTotalPrice())}</span>
+                  <span>৳{Math.round(subtotal)}</span>
                 </div>
+
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Discount</span>
+                    <span>− ৳{discountAmount}</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Delivery Fee</span>
                   <span className="text-green-600 font-medium">FREE</span>
                 </div>
                 <div className="flex justify-between text-xl font-bold text-gray-900 pt-3 border-t border-gray-200">
                   <span>Total</span>
-                  <span className="text-primary">
-                    ৳{Math.round(getTotalPrice())}
-                  </span>
+                  <span className="text-primary">৳{grandTotal}</span>
                 </div>
               </div>
 
