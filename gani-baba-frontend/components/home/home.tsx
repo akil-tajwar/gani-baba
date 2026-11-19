@@ -42,7 +42,11 @@ import { siteConfig } from '@/utils/constants'
 const features = [
   { icon: ShieldCheck, title: 'Genuine products', text: 'Trusted brands only' },
   { icon: Truck, title: 'Home delivery', text: 'Across Bangladesh' },
-  { icon: Banknote, title: 'Flexible payment', text: 'bKash, Nagad, Rocket & COD' },
+  {
+    icon: Banknote,
+    title: 'Flexible payment',
+    text: 'bKash, Nagad, Rocket & COD',
+  },
   { icon: Headphones, title: 'Support', text: siteConfig.phone },
 ]
 
@@ -110,7 +114,9 @@ export default function Home() {
   const getProductsByCategory = (categoryId: number) =>
     products.filter((product) => product.categoryId === categoryId)
 
-  const offerProducts = products.filter((p) => (p.discount ?? 0) > 0).slice(0, 4)
+  const offerProducts = products
+    .filter((p) => (p.discount ?? 0) > 0)
+    .slice(0, 4)
 
   if (loading)
     return (
@@ -179,17 +185,20 @@ export default function Home() {
                   {categories.map((category, index) => {
                     const Icon = iconForCategory(category.name)
                     return (
-                      <Reveal key={category.categoryId} delay={(index % 4) * 90}>
+                      <Reveal
+                        key={category.categoryId}
+                        delay={(index % 4) * 90}
+                      >
                         <Link
                           href={`/category-products/${category.categoryId}`}
-                          className="group relative flex flex-col justify-between h-40 md:h-48 overflow-hidden bg-primary/20 p-5 md:p-6 transition-colors duration-500 hover:bg-secondary"
+                          className="group relative flex flex-col justify-between h-40 md:h-48 overflow-hidden bg-primary/20 p-5 md:p-6 transition-colors duration-500 hover:bg-primary"
                         >
                           <div className="flex items-start justify-between">
-                            <span className="text-xs tracking-[0.25em] text-secondary/50 group-hover:text-white/50 transition-colors">
+                            <span className="text-xs tracking-[0.25em] text-secondary/50 group-hover:text-white/80 transition-colors">
                               {String(index + 1).padStart(2, '0')}
                             </span>
                             <Icon
-                              className="w-9 h-9 text-primary group-hover:text-primary-300 transition-all duration-500 group-hover:scale-110 group-hover:-rotate-6"
+                              className="w-9 h-9 text-primary group-hover:text-white transition-all duration-500 group-hover:scale-110 group-hover:-rotate-6"
                               strokeWidth={1.1}
                             />
                           </div>
@@ -199,7 +208,7 @@ export default function Home() {
                             </span>
                             <ArrowUpRight className="w-5 h-5 shrink-0 text-secondary/40 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 group-hover:text-white transition-all duration-500" />
                           </div>
-                          <span className="absolute left-0 bottom-0 h-0.5 w-0 bg-primary group-hover:w-full transition-all duration-500" />
+                          <span className="absolute left-0 bottom-0 h-0.5 w-0 bg-secondary group-hover:w-full transition-all duration-500" />
                         </Link>
                       </Reveal>
                     )
@@ -239,7 +248,11 @@ export default function Home() {
                 />
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-secondary/10 border border-secondary/10">
                   {brands.slice(0, 12).map((brand, i) => (
-                    <Reveal key={brand.brandId} delay={(i % 6) * 70} direction="none">
+                    <Reveal
+                      key={brand.brandId}
+                      delay={(i % 6) * 70}
+                      direction="none"
+                    >
                       <Link
                         href={`/men-products?brand=${brand.brandId}`}
                         className="group relative flex items-center justify-center h-24 md:h-28 bg-surface px-3 text-center text-sm uppercase tracking-[0.18em] font-medium text-secondary transition-colors duration-300 hover:bg-white hover:text-primary"
@@ -257,7 +270,9 @@ export default function Home() {
           <main className="container mx-auto px-4 md:px-8">
             {/* One product row per category */}
             {categories.map((category) => {
-              const categoryProducts = getProductsByCategory(category.categoryId!)
+              const categoryProducts = getProductsByCategory(
+                category.categoryId!
+              )
               if (categoryProducts.length === 0) return null
 
               const displayed = categoryProducts.slice(0, 4)
