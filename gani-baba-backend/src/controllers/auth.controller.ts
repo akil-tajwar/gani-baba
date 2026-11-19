@@ -14,7 +14,10 @@ import {
 } from "../services/auth.service";
 
 const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  phone: z
+    .string()
+    .min(1, "Phone is required")
+    .regex(/^[0-9]{10,15}$/, "Invalid phone number"),
   password: z
     .string()
     .min(1, "Password is required")
@@ -24,19 +27,23 @@ const loginSchema = z.object({
 const registerSchema = z
   .object({
     username: z.string().min(1, "Username is required"),
+    phone: z
+      .string()
+      .min(1, "Phone is required")
+      .regex(/^[0-9]{10,15}$/, "Invalid phone number"),
     email: z
       .string()
-      .min(1, "Email is required")
-      .email("Invalid email address"),
+      .email("Invalid email address")
+      .nullable()
+      .optional()
+      .or(z.literal("").transform(() => null)),
     password: z
       .string()
       .min(1, "Password is required")
       .min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
     active: z.boolean().default(true),
-    roleId: z.number(),
     fullName: z.string().optional(),
-    phone: z.string().optional(),
     division: z.string().optional(),
     district: z.string().optional(),
     address: z.string().optional(),
@@ -61,7 +68,6 @@ const changePasswordSchema = z
     path: ["confirmNewPassword"],
   });
 
-// Postgres rejects NaN / non-integer ids, so validate before querying
 const parseId = (value: string | undefined): number | null => {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -70,16 +76,13 @@ const parseId = (value: string | undefined): number | null => {
 export const login = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
-    const { username, password } = loginSchema.parse(req.body);
-    const result = await loginUser(username, password);
+    const { phone, password } = loginSchema.parse(req.body);
+    const result = await loginUser(phone, password);
 
-    res.json({
-      status: "success",
-      data: result,
-    });
+    res.json({ status: "success", data: result });
   } catch (error) {
     next(error);
   }
@@ -88,17 +91,16 @@ export const login = async (
 export const register = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
     const {
       username,
+      phone,
       email,
       password,
       active,
-      roleId,
       fullName,
-      phone,
       division,
       district,
       address,
@@ -106,12 +108,12 @@ export const register = async (
 
     const user = await createUser({
       username,
-      email,
+      phone,
+      email: email ?? null,
       password,
       active,
-      roleId,
+      roleId: 2,
       fullName,
-      phone,
       division,
       district,
       address,
@@ -122,11 +124,11 @@ export const register = async (
       data: {
         user: {
           username: user.username,
+          phone: user.phone,
           email: user.email,
           roleId: user.roleId,
           active: user.active,
           fullName: user.fullName,
-          phone: user.phone,
           division: user.division,
           district: user.district,
           address: user.address,
@@ -138,12 +140,10 @@ export const register = async (
   }
 };
 
-// ========== Controller Layer ==========
-
 export const updateUserController = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const id = parseId(req.params.userId);
@@ -154,11 +154,11 @@ export const updateUserController = async (
 
     const {
       username,
+      phone,
       email,
       roleId,
       active,
       fullName,
-      phone,
       division,
       district,
       address,
@@ -166,22 +166,22 @@ export const updateUserController = async (
 
     const updateData: {
       username?: string;
-      email?: string;
+      phone?: string;
+      email?: string | null;
       roleId?: number;
       active?: boolean;
       fullName?: string;
-      phone?: string;
       division?: string;
       district?: string;
       address?: string;
     } = {};
 
     if (username !== undefined) updateData.username = username;
-    if (email !== undefined) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
+    if (email !== undefined) updateData.email = email || null;
     if (roleId !== undefined) updateData.roleId = Number(roleId);
     if (active !== undefined) updateData.active = Boolean(active);
     if (fullName !== undefined) updateData.fullName = fullName;
-    if (phone !== undefined) updateData.phone = phone;
     if (division !== undefined) updateData.division = division;
     if (district !== undefined) updateData.district = district;
     if (address !== undefined) updateData.address = address;
@@ -189,19 +189,11 @@ export const updateUserController = async (
     const updatedUser = await updateUser(id, updateData);
 
     if (!updatedUser) {
-      res.status(404).json({
-        status: "fail",
-        message: "User not found",
-      });
+      res.status(404).json({ status: "fail", message: "User not found" });
       return;
     }
 
-    res.status(200).json({
-      status: "success",
-      data: {
-        user: updatedUser,
-      },
-    });
+    res.status(200).json({ status: "success", data: { user: updatedUser } });
   } catch (error) {
     next(error);
   }
@@ -210,7 +202,7 @@ export const updateUserController = async (
 export const changePasswordController = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
     const id = parseId(req.params.userId);
@@ -220,7 +212,7 @@ export const changePasswordController = async (
     }
 
     const { currentPassword, newPassword } = changePasswordSchema.parse(
-      req.body
+      req.body,
     );
 
     await changePassword(id, currentPassword, newPassword);
@@ -237,13 +229,14 @@ export const changePasswordController = async (
 export const getUsersWithRoles = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
     const usersWithRoles = await db
       .select({
         userId: userModel.userId,
         username: userModel.username,
+        phone: userModel.phone,
         active: userModel.active,
         roleName: roleModel.roleName,
       })
@@ -256,6 +249,7 @@ export const getUsersWithRoles = async (
         users: usersWithRoles.map((user) => ({
           id: user.userId,
           username: user.username,
+          phone: user.phone,
           active: user.active,
           roleName: user.roleName,
         })),
@@ -266,11 +260,10 @@ export const getUsersWithRoles = async (
   }
 };
 
-// get user by userId
 export const getUserByIdController = async (
   req: Request<{ userId: string }>,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const id = parseId(req.params.userId);
@@ -292,19 +285,14 @@ export const getUserByIdController = async (
   }
 };
 
-// get all users
 export const getUsersController = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const users = await getUsers();
-
-    res.status(200).json({
-      status: "success",
-      data: users,
-    });
+    res.status(200).json({ status: "success", data: users });
   } catch (error) {
     next(error);
   }

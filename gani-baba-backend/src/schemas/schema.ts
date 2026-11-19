@@ -49,7 +49,7 @@ export const userModel = pgTable("users", {
     onDelete: "set null",
   }),
   fullName: varchar("full_name", { length: 100 }),
-  phone: varchar("phone", { length: 20 }).unique(),
+  phone: varchar("phone", { length: 20 }).notNull().unique(),
   division: varchar("division", { length: 15 }),
   district: varchar("district", { length: 15 }),
   address: varchar("address", { length: 255 }),

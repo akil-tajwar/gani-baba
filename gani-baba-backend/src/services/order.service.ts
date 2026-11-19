@@ -12,6 +12,12 @@ import type { CreateOrderType } from "../controllers/order.controller";
  */
 export const createOrder = async (payload: CreateOrderType, userId: number) => {
   const { orderMaster, orderDetails } = payload;
+  const method = orderMaster.method;
+
+  // The database payment-method enum does not currently include cash on delivery.
+  if (method === "cod") {
+    throw new Error("Cash on delivery is not supported");
+  }
 
   return await db.transaction(async (trx) => {
     // 1️⃣ Insert order master
@@ -27,7 +33,7 @@ export const createOrder = async (payload: CreateOrderType, userId: number) => {
         phone: orderMaster.phone,
         email: orderMaster.email ?? null,
         status: "pending",
-        method: orderMaster.method,
+        method,
         billingPhone: orderMaster.billingPhone ?? orderMaster.phone,
         transactionId: orderMaster.transactionId ?? "",
         totalAmount: orderMaster.totalAmount,

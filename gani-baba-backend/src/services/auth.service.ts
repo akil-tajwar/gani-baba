@@ -7,9 +7,8 @@ import {
   hashPassword,
   validatePassword,
 } from "./utils/password.utils";
-import { NewUser, userModel, roleModel } from "../schemas";
+import { NewUser, userModel, roleModel, userRolesModel } from "../schemas";
 
-// Postgres unique violation = 23505 (Drizzle may wrap the pg error in `cause`)
 const isUniqueViolation = (error: any): boolean =>
   error?.code === "23505" || error?.cause?.code === "23505";
 
@@ -17,13 +16,23 @@ const safeUserColumns = {
   userId: userModel.userId,
   username: userModel.username,
   email: userModel.email,
+  phone: userModel.phone,
   roleId: userModel.roleId,
   active: userModel.active,
   fullName: userModel.fullName,
-  phone: userModel.phone,
   division: userModel.division,
   district: userModel.district,
   address: userModel.address,
+};
+
+// ---------- Finders ----------
+
+export const findUserByPhone = async (phone: string) => {
+  const [user] = await db
+    .select()
+    .from(userModel)
+    .where(eq(userModel.phone, phone));
+  return user;
 };
 
 export const findUserByUsername = async (username: string) => {
@@ -45,14 +54,12 @@ export const findUserByEmail = async (email: string) => {
 export const getUserDetailsByUserId = async (userId: number) => {
   const user = await db.query.userModel.findFirst({
     where: eq(userModel.userId, userId),
-    columns: { password: false }, // never return the hash
+    columns: { password: false },
     with: {
       role: {
         with: {
           rolePermissions: {
-            with: {
-              permission: true,
-            },
+            with: { permission: true },
           },
         },
       },
@@ -61,15 +68,22 @@ export const getUserDetailsByUserId = async (userId: number) => {
   return user;
 };
 
-// Create user function
+// ---------- Create ----------
+
 export const createUser = async (userData: NewUser) => {
-  // Check if username already exists
-  const existingUser = await findUserByUsername(userData.username);
-  if (existingUser) {
+  // Pre-checks (reads — safe to do outside the transaction)
+  const existingPhone = await findUserByPhone(userData.phone);
+  if (existingPhone) {
+    throw BadRequestError(
+      "Phone number already registered, please try another",
+    );
+  }
+
+  const existingUsername = await findUserByUsername(userData.username);
+  if (existingUsername) {
     throw BadRequestError("Username already registered, please try another");
   }
 
-  // Check if email already exists (only when provided)
   if (userData.email) {
     const existingEmail = await findUserByEmail(userData.email);
     if (existingEmail) {
@@ -77,51 +91,62 @@ export const createUser = async (userData: NewUser) => {
     }
   }
 
-  // Validate and hash password
   validatePassword(userData.password);
   const hashedPassword = await hashPassword(userData.password);
 
+  const ROLE_ID = 2; // default role for self-registered users
+
+  // Transaction: user + user_roles must both succeed or both roll back
   try {
-    const [newUser] = await db
-      .insert(userModel)
-      .values({
-        username: userData.username,
-        email: userData.email,
-        password: hashedPassword,
-        active: userData.active,
-        // roleId: userData.roleId,
-        roleId: 2, // used hardcoded roleId for users to avoid unauthorized role assignment
-        fullName: userData.fullName,
-        phone: userData.phone,
-        division: userData.division,
-        district: userData.district,
-        address: userData.address,
-      })
-      .returning(safeUserColumns); // no password in the result
+    const newUser = await db.transaction(async (tx) => {
+      const [insertedUser] = await tx
+        .insert(userModel)
+        .values({
+          username: userData.username,
+          phone: userData.phone,
+          email: userData.email ?? null,
+          password: hashedPassword,
+          active: userData.active ?? true,
+          roleId: ROLE_ID,
+          fullName: userData.fullName,
+          division: userData.division,
+          district: userData.district,
+          address: userData.address,
+        })
+        .returning(safeUserColumns);
+
+      // Insert into the join table (composite PK: userId + roleId)
+      await tx.insert(userRolesModel).values({
+        userId: insertedUser.userId,
+        roleId: ROLE_ID,
+      });
+
+      return insertedUser;
+    });
 
     return newUser;
   } catch (error) {
-    // Covers race conditions and the unique phone column
     if (isUniqueViolation(error)) {
       throw BadRequestError(
-        "Username, email or phone already registered, please try another"
+        "Username, phone or email already registered, please try another",
       );
     }
     throw error;
   }
 };
 
-// get all users
+// ---------- Read ----------
+
 export const getUsers = async () => {
-  const userList = await db
+  return await db
     .select({
       userId: userModel.userId,
       username: userModel.username,
       email: userModel.email,
+      phone: userModel.phone,
       active: userModel.active,
       roleId: userModel.roleId,
       fullName: userModel.fullName,
-      phone: userModel.phone,
       division: userModel.division,
       district: userModel.district,
       address: userModel.address,
@@ -131,124 +156,18 @@ export const getUsers = async () => {
     })
     .from(userModel)
     .leftJoin(roleModel, eq(userModel.roleId, roleModel.roleId));
-
-  return userList;
 };
 
-// ========== Service Layer ==========
-export const updateUser = async (
-  userId: number,
-  updateData: {
-    username?: string;
-    email?: string;
-    roleId?: number;
-    active?: boolean;
-    fullName?: string;
-    phone?: string;
-    division?: string;
-    district?: string;
-    address?: string;
-    // no password here
-  }
-) => {
-  try {
-    const [updatedUser] = await db
-      .update(userModel)
-      .set(updateData)
-      .where(eq(userModel.userId, userId))
-      .returning(safeUserColumns);
-
-    return updatedUser; // undefined if no row matched
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      throw BadRequestError(
-        "Username, email or phone already registered, please try another"
-      );
-    }
-    throw error;
-  }
-};
-
-export const loginUser = async (username: string, password: string) => {
-  const user = await findUserByUsername(username);
-
-  if (!user) {
-    throw UnauthorizedError(
-      "Wrong username/password. Please Contact with Administrator"
-    );
-  }
-
-  // Validate password format if needed
-  validatePassword(password);
-
-  // Compare the plain password with stored hash
-  const isValidPassword = await comparePassword(password, user.password);
-
-  if (!isValidPassword) {
-    throw UnauthorizedError(
-      "Wrong username/password. Please Contact with Administrator"
-    );
-  }
-
-  // fetch user details like role and permissions
-  const userDetails = await getUserDetailsByUserId(user.userId);
-  const permissions =
-    userDetails?.role?.rolePermissions.map((ur) => ur.permission.name) || [];
-
-  const token = generateAccessToken({
-    userId: user.userId,
-    username: user.username,
-    role: user?.roleId,
-    permissions: permissions,
-    hasPermission: (perm: string) => permissions.includes(perm),
-  });
-
-  return {
-    token,
-    user: userDetails,
-  };
-};
-
-export const changePassword = async (
-  userId: number,
-  currentPassword: string,
-  newPassword: string
-) => {
-  const [user] = await db
-    .select()
-    .from(userModel)
-    .where(eq(userModel.userId, userId));
-
-  if (!user) {
-    throw UnauthorizedError("User not found");
-  }
-
-  const isValidPassword = await comparePassword(currentPassword, user.password);
-
-  if (!isValidPassword) {
-    throw UnauthorizedError("Current password is incorrect");
-  }
-
-  validatePassword(newPassword);
-  const hashedPassword = await hashPassword(newPassword);
-
-  await db
-    .update(userModel)
-    .set({ password: hashedPassword })
-    .where(eq(userModel.userId, userId));
-};
-
-// get user by userId
 export const getUserById = async (userId: number) => {
   const [user] = await db
     .select({
       userId: userModel.userId,
       username: userModel.username,
       email: userModel.email,
+      phone: userModel.phone,
       active: userModel.active,
       roleId: userModel.roleId,
       fullName: userModel.fullName,
-      phone: userModel.phone,
       division: userModel.division,
       district: userModel.district,
       address: userModel.address,
@@ -262,4 +181,99 @@ export const getUserById = async (userId: number) => {
     .limit(1);
 
   return user ?? null;
+};
+
+// ---------- Update ----------
+
+export const updateUser = async (
+  userId: number,
+  updateData: {
+    username?: string;
+    phone?: string;
+    email?: string | null;
+    roleId?: number;
+    active?: boolean;
+    fullName?: string;
+    division?: string;
+    district?: string;
+    address?: string;
+  },
+) => {
+  try {
+    const [updatedUser] = await db
+      .update(userModel)
+      .set(updateData)
+      .where(eq(userModel.userId, userId))
+      .returning(safeUserColumns);
+
+    return updatedUser;
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw BadRequestError(
+        "Username, phone or email already registered, please try another",
+      );
+    }
+    throw error;
+  }
+};
+
+// ---------- Login ----------
+
+export const loginUser = async (phone: string, password: string) => {
+  const user = await findUserByPhone(phone);
+
+  if (!user) {
+    throw UnauthorizedError(
+      "Wrong phone/password. Please contact with Administrator",
+    );
+  }
+
+  validatePassword(password);
+  const isValidPassword = await comparePassword(password, user.password);
+  if (!isValidPassword) {
+    throw UnauthorizedError(
+      "Wrong phone/password. Please contact with Administrator",
+    );
+  }
+
+  const userDetails = await getUserDetailsByUserId(user.userId);
+  const permissions =
+    userDetails?.role?.rolePermissions.map((ur) => ur.permission.name) || [];
+
+  const token = generateAccessToken({
+    userId: user.userId,
+    username: user.username,
+    role: user.roleId ?? null,
+    permissions,
+    hasPermission: (perm: string) => permissions.includes(perm),
+  });
+
+  return { token, user: userDetails };
+};
+
+// ---------- Change password ----------
+
+export const changePassword = async (
+  userId: number,
+  currentPassword: string,
+  newPassword: string,
+) => {
+  const [user] = await db
+    .select()
+    .from(userModel)
+    .where(eq(userModel.userId, userId));
+
+  if (!user) throw UnauthorizedError("User not found");
+
+  const isValidPassword = await comparePassword(currentPassword, user.password);
+  if (!isValidPassword)
+    throw UnauthorizedError("Current password is incorrect");
+
+  validatePassword(newPassword);
+  const hashedPassword = await hashPassword(newPassword);
+
+  await db
+    .update(userModel)
+    .set({ password: hashedPassword })
+    .where(eq(userModel.userId, userId));
 };
