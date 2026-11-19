@@ -15,38 +15,32 @@ import {
   GetUsersType,
   CreateCouponType,
   GetCouponType,
+  UserType,
 } from '@/utils/type'
 
-export async function registerUser(credentials: RegisterRequest) {
+export async function registerUser(data: RegisterRequest) {
   return fetchApi<RegisterResponse>({
     url: 'api/auth/register',
     method: 'POST',
-    body: credentials,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
+    body: data,
   })
 }
 
-export async function signIn(credentials: SignInRequest) {
+export async function signIn(data: { phone: string; password: string }) {
   return fetchApi<SignInResponse>({
     url: 'api/auth/login',
     method: 'POST',
-    body: credentials,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
+    body: data,
   })
 }
 
 export async function getUsers(token: string) {
-  return fetchApi<GetUsersType[]>({
-    url: 'api/auth/users',
+  return fetchApi<{ status: string; data: UserType[] }>({
+    url: 'api/auth/get-users',
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `${token}`,
-    },
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
   })
 }
 
@@ -203,7 +197,6 @@ export async function updateCategory(
   })
 }
 
-
 export async function deleteCategory(id: number, token: string) {
   return fetchApi<{ id: number }>({
     url: `api/categories/delete/${id}`,
@@ -257,7 +250,7 @@ export async function updateProduct(
 
 //delete product api
 export async function deleteProduct(token: string, id: number) {
-  return fetchApi<{id: number}>({
+  return fetchApi<{ id: number }>({
     url: `api/products/delete/${id}`,
     method: 'DELETE',
     headers: {

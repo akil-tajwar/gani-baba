@@ -1,19 +1,35 @@
 import { z } from 'zod'
 
-// ✅ Request schema for registration
+// ---------- User ----------
+
+export type UserType = {
+  userId: number;
+  username: string;
+  phone: string;
+  email?: string | null;
+  fullName?: string | null;
+  roleId?: number | null;
+};
+
+// ---------- Register ----------
+
 export const RegisterRequestSchema = z
   .object({
-    username: z.string().min(1, 'Username is required'),
+    username: z.string().min(1, "Username is required"),
+    phone: z
+      .string()
+      .min(1, "Phone is required")
+      .regex(/^[0-9]{10,15}$/, "Invalid phone number"),
     email: z
       .string()
-      .min(1, 'Email is required')
-      .email('Invalid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+      .email("Invalid email address")
+      .optional()
+      .or(z.literal("").transform(() => undefined)),
+    password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z
       .string()
-      .min(8, 'Confirm password must be at least 8 characters'),
+      .min(8, "Confirm password must be at least 8 characters"),
     fullName: z.string().optional(),
-    phone: z.string().optional(),
     division: z.string().optional(),
     district: z.string().optional(),
     address: z.string().optional(),
@@ -22,52 +38,55 @@ export const RegisterRequestSchema = z
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
-    path: ['confirmPassword'],
-  })
+    path: ["confirmPassword"],
+  });
 
-export type RegisterRequest = z.infer<typeof RegisterRequestSchema>
+export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
 
-// ✅ Response schema matching backend response
 export const RegisterResponseSchema = z.object({
-  status: z.literal('success'),
+  status: z.literal("success"),
   data: z.object({
     user: z.object({
       username: z.string(),
-      email: z.string().email(),
-      roleId: z.number(),
+      phone: z.string(),
+      email: z.string().email().nullable().optional(),
+      roleId: z.number().nullable(),
       active: z.boolean(),
-      fullName: z.string().optional(),
-      phone: z.string().optional(),
-      division: z.string().optional(),
-      district: z.string().optional(),
-      address: z.string().optional(),
+      fullName: z.string().nullable().optional(),
+      division: z.string().nullable().optional(),
+      district: z.string().nullable().optional(),
+      address: z.string().nullable().optional(),
     }),
   }),
-})
+});
 
-export type RegisterResponse = z.infer<typeof RegisterResponseSchema>
+export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
 
-// ✅ Request schema for login (correct)
-const SignInRequestSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-})
+// ---------- Sign In ----------
 
-export type SignInRequest = z.infer<typeof SignInRequestSchema>
+export const SignInRequestSchema = z.object({
+  phone: z
+    .string()
+    .min(1, "Phone is required")
+    .regex(/^[0-9]{10,15}$/, "Invalid phone number"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
 
-// ✅ Response schema matching your backend response
-const SignInResponseSchema = z.object({
+export type SignInRequest = z.infer<typeof SignInRequestSchema>;
+
+export const SignInResponseSchema = z.object({
   data: z.object({
     token: z.string(),
     user: z.object({
       userId: z.number(),
       username: z.string(),
-      role: z.number().optional(), // Assuming roleId is returned directly
-      // Add other fields as needed from your backend
+      phone: z.string(),
+      role: z.number().optional(),
     }),
   }),
-})
-export type SignInResponse = z.infer<typeof SignInResponseSchema>
+});
+
+export type SignInResponse = z.infer<typeof SignInResponseSchema>;
 
 // ---------------------------------------------------------------------
 // Catalog types (shapes match the backend: flat category / brand / product)

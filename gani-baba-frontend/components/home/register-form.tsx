@@ -22,13 +22,12 @@ import {
   ChevronLeft,
 } from 'lucide-react'
 import { RegisterRequestSchema } from '@/utils/type'
-import { getUsers } from '@/utils/api'
+import { getUsers, registerUser } from '@/utils/api'
 import { UserType } from './login-form'
 import { tokenAtom } from '@/utils/user'
 import { toast } from '@/hooks/use-toast'
 import { locationData } from '@/utils/constants'
 import { CustomCombobox } from '@/utils/custom-combobox'
-import { registerUser } from '@/utils/api'
 
 interface RegisterFormProps {
   isOpen: boolean
@@ -55,9 +54,9 @@ export default function RegisterForm({
   const [currentTab, setCurrentTab] = useState<TabType>('user-details')
   const [formData, setFormData] = useState({
     username: '',
+    phone: '',
     email: '',
     fullName: '',
-    phone: '',
     division: '',
     district: '',
     address: '',
@@ -73,9 +72,9 @@ export default function RegisterForm({
   const [checkingAvailability, setCheckingAvailability] = useState(false)
   const [touched, setTouched] = useState({
     username: false,
+    phone: false,
     email: false,
     fullName: false,
-    phone: false,
     division: false,
     district: false,
     address: false,
@@ -83,7 +82,6 @@ export default function RegisterForm({
     confirmPassword: false,
   })
 
-  // Password requirements validation
   const [passwordRequirements, setPasswordRequirements] = useState<
     PasswordRequirement[]
   >([
@@ -95,14 +93,12 @@ export default function RegisterForm({
     { text: 'Not a common password', met: false },
   ])
 
-  // Fetch all existing users when modal opens
   const fetchUsers = useCallback(async () => {
     if (!isOpen) return
-
     try {
       setCheckingAvailability(true)
       const res = await getUsers(token || '')
-      setExistingUsers(res.data || [])
+      setExistingUsers(res.data?.data || [])
     } catch (error) {
       console.error('Failed to fetch users:', error)
       setExistingUsers([])
@@ -112,12 +108,9 @@ export default function RegisterForm({
   }, [token, isOpen])
 
   useEffect(() => {
-    if (isOpen) {
-      fetchUsers()
-    }
+    if (isOpen) fetchUsers()
   }, [fetchUsers, isOpen])
 
-  // Validate password in real-time
   useEffect(() => {
     const password = formData.password
     const commonPasswords = ['password123', 'admin123', '12345678']
@@ -148,44 +141,38 @@ export default function RegisterForm({
     formData.confirmPassword &&
     formData.password === formData.confirmPassword
 
-  // Check if username already exists
   const isUsernameTaken = (username: string) => {
     if (!username || username.length < 3) return false
-    const isTaken = existingUsers.some(
+    return existingUsers.some(
       (user) =>
         user.username && user.username.toLowerCase() === username.toLowerCase()
     )
-
-    return isTaken
   }
 
-  // Check if email already exists
+  const isPhoneTaken = (phone: string) => {
+    if (!phone || !/^[0-9]{10,15}$/.test(phone)) return false
+    return existingUsers.some((user) => user.phone && user.phone === phone)
+  }
+
   const isEmailTaken = (email: string) => {
     if (!email || !isEmailValid(email)) return false
-    const isTaken = existingUsers.some(
+    return existingUsers.some(
       (user) => user.email && user.email.toLowerCase() === email.toLowerCase()
     )
-
-    return isTaken
   }
 
-  // Email validation
   const isEmailValid = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   }
 
-  // Username validation
   const isUsernameValid = (username: string) => {
     return username.length >= 3
   }
 
-  // Phone validation
   const isPhoneValid = (phone: string) => {
-    if (!phone) return true // Phone is optional
     return /^[0-9]{10,15}$/.test(phone)
   }
 
-  // Get available districts based on selected division
   const getAvailableDistricts = () => {
     if (!formData.division) return []
     return (
@@ -195,17 +182,15 @@ export default function RegisterForm({
     )
   }
 
-  // Handle division change
   const handleDivisionChange = (value: { id: string; name: string } | null) => {
     setFormData((prev) => ({
       ...prev,
       division: value?.id || '',
-      district: '', // Reset district when division changes
+      district: '',
     }))
     setError('')
   }
 
-  // Handle district change
   const handleDistrictChange = (value: { id: string; name: string } | null) => {
     setFormData((prev) => ({
       ...prev,
@@ -214,55 +199,57 @@ export default function RegisterForm({
     setError('')
   }
 
-  // Validate current tab before moving to next
   const validateCurrentTab = (): boolean => {
     setError('')
 
     if (currentTab === 'user-details') {
-      // Mark fields as touched
       setTouched((prev) => ({
         ...prev,
         username: true,
+        phone: true,
         email: true,
         fullName: true,
-        phone: true,
       }))
 
-      // Validate username
       if (!isUsernameValid(formData.username)) {
         setError('Username must be at least 3 characters long')
         return false
       }
-
-      // Check if username is taken
       if (isUsernameTaken(formData.username)) {
         setError('This username is already taken. Please choose another one.')
         return false
       }
 
-      // Validate email
-      if (!isEmailValid(formData.email)) {
-        setError('Please enter a valid email address')
+      if (!formData.phone.trim()) {
+        setError('Phone number is required')
         return false
       }
-
-      // Check if email is taken
-      if (isEmailTaken(formData.email)) {
+      if (!isPhoneValid(formData.phone)) {
+        setError('Please enter a valid phone number (10-15 digits)')
+        return false
+      }
+      if (isPhoneTaken(formData.phone)) {
         setError(
-          'This email is already registered. Please use another email or login.'
+          'This phone number is already registered. Please login instead.'
         )
         return false
       }
 
-      // Validate full name
-      if (!formData.fullName || formData.fullName.trim().length < 2) {
-        setError('Please enter your full name')
-        return false
+      if (formData.email.trim()) {
+        if (!isEmailValid(formData.email)) {
+          setError('Please enter a valid email address')
+          return false
+        }
+        if (isEmailTaken(formData.email)) {
+          setError(
+            'This email is already registered. Please use another email or login.'
+          )
+          return false
+        }
       }
 
-      // Validate phone if provided
-      if (formData.phone && !isPhoneValid(formData.phone)) {
-        setError('Please enter a valid phone number (10-15 digits)')
+      if (!formData.fullName || formData.fullName.trim().length < 2) {
+        setError('Please enter your full name')
         return false
       }
 
@@ -270,7 +257,6 @@ export default function RegisterForm({
     }
 
     if (currentTab === 'location-details') {
-      // Mark fields as touched
       setTouched((prev) => ({
         ...prev,
         division: true,
@@ -278,47 +264,36 @@ export default function RegisterForm({
         address: true,
       }))
 
-      // Validate division
       if (!formData.division) {
         setError('Please select a division')
         return false
       }
-
-      // Validate district
       if (!formData.district) {
         setError('Please select a district')
         return false
       }
-
-      // Validate address
       if (!formData.address || formData.address.trim().length < 5) {
         setError('Please enter a valid address (at least 5 characters)')
         return false
       }
-
       return true
     }
 
     if (currentTab === 'set-password') {
-      // Mark fields as touched
       setTouched((prev) => ({
         ...prev,
         password: true,
         confirmPassword: true,
       }))
 
-      // Validate password requirements
       if (!allPasswordRequirementsMet) {
         setError('Please meet all password requirements')
         return false
       }
-
-      // Validate password match
       if (formData.password !== formData.confirmPassword) {
         setError('Passwords do not match')
         return false
       }
-
       return true
     }
 
@@ -327,21 +302,14 @@ export default function RegisterForm({
 
   const handleNext = () => {
     if (!validateCurrentTab()) return
-
-    if (currentTab === 'user-details') {
-      setCurrentTab('location-details')
-    } else if (currentTab === 'location-details') {
-      setCurrentTab('set-password')
-    }
+    if (currentTab === 'user-details') setCurrentTab('location-details')
+    else if (currentTab === 'location-details') setCurrentTab('set-password')
   }
 
   const handlePrev = () => {
     setError('')
-    if (currentTab === 'set-password') {
-      setCurrentTab('location-details')
-    } else if (currentTab === 'location-details') {
-      setCurrentTab('user-details')
-    }
+    if (currentTab === 'set-password') setCurrentTab('location-details')
+    else if (currentTab === 'location-details') setCurrentTab('user-details')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -349,38 +317,35 @@ export default function RegisterForm({
     setError('')
     setSuccess('')
 
-    // Validate all tabs
     if (!validateCurrentTab()) return
 
     try {
       setLoading(true)
       const validatedData = RegisterRequestSchema.parse({
         ...formData,
+        email: formData.email.trim() || undefined,
         roleId: 2,
       })
       const response = await registerUser(validatedData)
 
       if (response.data && response.data.status === 'success') {
-        // ✅ Registration successful - show success message
         const registeredUser = response.data.data.user
 
-        // Show success message with instructions to login
         setSuccess(
-          `Account created successfully! Please login using your username "${registeredUser.username}" and password to access your dashboard.`
+          `Account created successfully! Please login using your phone "${registeredUser.phone}" and password to access your dashboard.`
         )
 
         toast({
           title: 'Registration Successful! 🎉',
-          description: `Welcome ${registeredUser.username}! Please login with your credentials to access the dashboard.`,
+          description: `Welcome ${registeredUser.username}! Please login with your credentials.`,
           variant: 'default',
         })
 
-        // Reset form
         setFormData({
           username: '',
+          phone: '',
           email: '',
           fullName: '',
-          phone: '',
           division: '',
           district: '',
           address: '',
@@ -389,9 +354,9 @@ export default function RegisterForm({
         })
         setTouched({
           username: false,
+          phone: false,
           email: false,
           fullName: false,
-          phone: false,
           division: false,
           district: false,
           address: false,
@@ -400,7 +365,6 @@ export default function RegisterForm({
         })
         setCurrentTab('user-details')
 
-        // Switch to login form after 3 seconds so user can read the message
         setTimeout(() => {
           setSuccess('')
           onClose()
@@ -482,7 +446,6 @@ export default function RegisterForm({
                 <button
                   key={tab.id}
                   onClick={() => {
-                    // Allow clicking on completed tabs
                     if (index <= currentTabIndex) {
                       setCurrentTab(tab.id)
                       setError('')
@@ -536,7 +499,6 @@ export default function RegisterForm({
             </div>
           )}
 
-          {/* Tab Content */}
           <div className="space-y-4">
             {currentTab === 'user-details' && (
               <>
@@ -595,13 +557,75 @@ export default function RegisterForm({
                     )}
                 </div>
 
-                {/* Email */}
+                {/* Phone */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="reg-phone"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Phone Number <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      id="reg-phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        handleInputChange('phone', e.target.value)
+                      }
+                      onBlur={() => handleBlur('phone')}
+                      placeholder="01XXXXXXXXX"
+                      className={`pl-10 ${
+                        touched.phone && !formData.phone
+                          ? 'border-red-300 focus:border-red-500'
+                          : touched.phone && !isPhoneValid(formData.phone)
+                            ? 'border-red-300 focus:border-red-500'
+                            : touched.phone && isPhoneTaken(formData.phone)
+                              ? 'border-red-300 focus:border-red-500'
+                              : touched.phone && isPhoneValid(formData.phone)
+                                ? 'border-green-300 focus:border-green-500'
+                                : ''
+                      }`}
+                      required
+                    />
+                  </div>
+                  {touched.phone && !formData.phone && (
+                    <p className="text-xs text-red-600">
+                      Phone number is required
+                    </p>
+                  )}
+                  {touched.phone &&
+                    formData.phone &&
+                    !isPhoneValid(formData.phone) && (
+                      <p className="text-xs text-red-600">
+                        Please enter a valid phone number (10-15 digits)
+                      </p>
+                    )}
+                  {touched.phone &&
+                    isPhoneValid(formData.phone) &&
+                    isPhoneTaken(formData.phone) && (
+                      <p className="text-xs text-red-600">
+                        This phone number is already registered
+                      </p>
+                    )}
+                  {touched.phone &&
+                    isPhoneValid(formData.phone) &&
+                    !isPhoneTaken(formData.phone) && (
+                      <p className="text-xs text-green-600 flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Phone number is available
+                      </p>
+                    )}
+                </div>
+
+                {/* Email — optional */}
                 <div className="space-y-2">
                   <Label
                     htmlFor="reg-email"
                     className="text-sm font-medium text-gray-700"
                   >
-                    Email <span className="text-red-500">*</span>
+                    Email (Optional)
                   </Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -613,25 +637,33 @@ export default function RegisterForm({
                         handleInputChange('email', e.target.value)
                       }
                       onBlur={() => handleBlur('email')}
-                      placeholder="Enter your email"
+                      placeholder="your.email@example.com"
                       className={`pl-10 ${
-                        touched.email && !isEmailValid(formData.email)
+                        touched.email &&
+                        formData.email &&
+                        !isEmailValid(formData.email)
                           ? 'border-red-300 focus:border-red-500'
-                          : touched.email && isEmailTaken(formData.email)
+                          : touched.email &&
+                              formData.email &&
+                              isEmailTaken(formData.email)
                             ? 'border-red-300 focus:border-red-500'
-                            : touched.email && isEmailValid(formData.email)
+                            : touched.email &&
+                                formData.email &&
+                                isEmailValid(formData.email)
                               ? 'border-green-300 focus:border-green-500'
                               : ''
                       }`}
-                      required
                     />
                   </div>
-                  {touched.email && !isEmailValid(formData.email) && (
-                    <p className="text-xs text-red-600">
-                      Please enter a valid email address
-                    </p>
-                  )}
                   {touched.email &&
+                    formData.email &&
+                    !isEmailValid(formData.email) && (
+                      <p className="text-xs text-red-600">
+                        Please enter a valid email address
+                      </p>
+                    )}
+                  {touched.email &&
+                    formData.email &&
                     isEmailValid(formData.email) &&
                     isEmailTaken(formData.email) && (
                       <p className="text-xs text-red-600">
@@ -639,6 +671,7 @@ export default function RegisterForm({
                       </p>
                     )}
                   {touched.email &&
+                    formData.email &&
                     isEmailValid(formData.email) &&
                     !isEmailTaken(formData.email) && (
                       <p className="text-xs text-green-600 flex items-center gap-1">
@@ -688,61 +721,11 @@ export default function RegisterForm({
                       </p>
                     )}
                 </div>
-
-                {/* Phone */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="reg-phone"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    Phone Number (Optional)
-                  </Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      id="reg-phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) =>
-                        handleInputChange('phone', e.target.value)
-                      }
-                      onBlur={() => handleBlur('phone')}
-                      placeholder="Enter your phone number"
-                      className={`pl-10 ${
-                        touched.phone &&
-                        formData.phone &&
-                        !isPhoneValid(formData.phone)
-                          ? 'border-red-300 focus:border-red-500'
-                          : touched.phone &&
-                              formData.phone &&
-                              isPhoneValid(formData.phone)
-                            ? 'border-green-300 focus:border-green-500'
-                            : ''
-                      }`}
-                    />
-                  </div>
-                  {touched.phone &&
-                    formData.phone &&
-                    !isPhoneValid(formData.phone) && (
-                      <p className="text-xs text-red-600">
-                        Please enter a valid phone number (10-15 digits)
-                      </p>
-                    )}
-                  {touched.phone &&
-                    formData.phone &&
-                    isPhoneValid(formData.phone) && (
-                      <p className="text-xs text-green-600 flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        Valid phone number
-                      </p>
-                    )}
-                </div>
               </>
             )}
 
             {currentTab === 'location-details' && (
               <>
-                {/* Division */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">
                     Division <span className="text-red-500">*</span>
@@ -770,7 +753,6 @@ export default function RegisterForm({
                   )}
                 </div>
 
-                {/* District */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">
                     District <span className="text-red-500">*</span>
@@ -804,7 +786,6 @@ export default function RegisterForm({
                   )}
                 </div>
 
-                {/* Address */}
                 <div className="space-y-2">
                   <Label
                     htmlFor="reg-address"
@@ -855,7 +836,6 @@ export default function RegisterForm({
 
             {currentTab === 'set-password' && (
               <>
-                {/* Password */}
                 <div className="space-y-2">
                   <Label
                     htmlFor="reg-password"
@@ -896,7 +876,6 @@ export default function RegisterForm({
                     </button>
                   </div>
 
-                  {/* Password Requirements */}
                   {(touched.password || formData.password.length > 0) && (
                     <div className="bg-gray-50 rounded-md p-3 space-y-1.5">
                       <p className="text-xs font-medium text-gray-700 mb-2">
@@ -910,7 +889,9 @@ export default function RegisterForm({
                             <X className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                           )}
                           <span
-                            className={`text-xs ${req.met ? 'text-green-700' : 'text-gray-600'}`}
+                            className={`text-xs ${
+                              req.met ? 'text-green-700' : 'text-gray-600'
+                            }`}
                           >
                             {req.text}
                           </span>
@@ -920,7 +901,6 @@ export default function RegisterForm({
                   )}
                 </div>
 
-                {/* Confirm Password */}
                 <div className="space-y-2">
                   <Label
                     htmlFor="reg-confirm-password"
@@ -980,7 +960,6 @@ export default function RegisterForm({
             )}
           </div>
 
-          {/* Navigation Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200">
             <Button
               type="button"
@@ -1013,7 +992,6 @@ export default function RegisterForm({
             )}
           </div>
 
-          {/* Login Link */}
           <div className="text-center pt-2">
             <p className="text-sm text-gray-600">
               Already have an account?{' '}
