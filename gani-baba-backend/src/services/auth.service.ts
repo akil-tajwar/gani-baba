@@ -8,6 +8,7 @@ import {
   validatePassword,
 } from "./utils/password.utils";
 import { NewUser, userModel, roleModel, userRolesModel } from "../schemas";
+import { createOtp } from "./otp.service";
 
 const isUniqueViolation = (error: any): boolean =>
   error?.code === "23505" || error?.cause?.code === "23505";
@@ -69,7 +70,6 @@ export const getUserDetailsByUserId = async (userId: number) => {
 };
 
 // ---------- Create ----------
-
 export const createUser = async (userData: NewUser) => {
   // Pre-checks (reads — safe to do outside the transaction)
   const existingPhone = await findUserByPhone(userData.phone);
@@ -106,7 +106,7 @@ export const createUser = async (userData: NewUser) => {
           phone: userData.phone,
           email: userData.email ?? null,
           password: hashedPassword,
-          active: userData.active ?? true,
+          active: false, // <--- INACTIVE until OTP is verified
           roleId: ROLE_ID,
           fullName: userData.fullName,
           division: userData.division,
@@ -124,6 +124,10 @@ export const createUser = async (userData: NewUser) => {
       return insertedUser;
     });
 
+    // Trigger OTP sending AFTER the user is successfully created
+    // (Outside the transaction so we don't hold a DB lock during an API call)
+    await createOtp(newUser.userId, newUser.phone!, "registration");
+
     return newUser;
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -135,8 +139,14 @@ export const createUser = async (userData: NewUser) => {
   }
 };
 
-// ---------- Read ----------
+export const verifyRegistration = async (userId: number) => {
+  await db
+    .update(userModel)
+    .set({ active: true })
+    .where(eq(userModel.userId, userId));
+};
 
+// ---------- Read ----------
 export const getUsers = async () => {
   return await db
     .select({
@@ -235,6 +245,18 @@ export const loginUser = async (phone: string, password: string) => {
       "Wrong phone/password. Please contact with Administrator",
     );
   }
+
+  // ==========================================
+  // ACTIVE STATUS CHECK
+  // ==========================================
+  if (!user.active) {
+    // Throwing an error here prevents token generation.
+    // The frontend can catch this specific message and prompt for OTP.
+    throw UnauthorizedError(
+      "Account is not verified. Please verify your phone number with the OTP sent during registration.",
+    );
+  }
+  // ==========================================
 
   const userDetails = await getUserDetailsByUserId(user.userId);
   const permissions =

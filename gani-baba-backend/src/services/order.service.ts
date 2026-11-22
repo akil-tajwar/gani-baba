@@ -6,19 +6,43 @@ import {
   productsModel,
 } from "../schemas";
 import type { CreateOrderType } from "../controllers/order.controller";
+import { hasRecentMonthlyVerification, verifyOtp } from "./otp.service";
+import { BadRequestError } from "./utils/errors.utils";
 
 /**
  * CREATE ORDER (MASTER + DETAILS)
  */
-export const createOrder = async (payload: CreateOrderType, userId: number) => {
+export const createOrder = async (
+  payload: CreateOrderType,
+  userId: number,
+  otpCode?: string // <--- Optional OTP passed from frontend if required
+) => {
   const { orderMaster, orderDetails } = payload;
   const method = orderMaster.method;
 
-  // The database payment-method enum does not currently include cash on delivery.
   if (method === "cod") {
     throw new Error("Cash on delivery is not supported");
   }
 
+  // ==========================================
+  // OTP VERIFICATION CHECK
+  // ==========================================
+  const isVerifiedRecently = await hasRecentMonthlyVerification(userId);
+
+  if (!isVerifiedRecently) {
+    // If they haven't verified in 30 days, they MUST provide an OTP
+    if (!otpCode) {
+      throw BadRequestError(
+        "Monthly security verification required. Please request an OTP to continue."
+      );
+    }
+
+    // Verify the OTP (this throws an error if the OTP is wrong/expired)
+    await verifyOtp(userId, otpCode, "monthly");
+  }
+  // ==========================================
+
+  // Proceed with standard order creation
   return await db.transaction(async (trx) => {
     // 1️⃣ Insert order master
     const [master] = await trx

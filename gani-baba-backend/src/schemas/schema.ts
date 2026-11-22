@@ -27,6 +27,8 @@ export const paymentMethodEnum = pgEnum("payment_method", [
 
 export const couponTypeEnum = pgEnum("coupon_type", ["amount", "percentage"]);
 
+export const otpPurposeEnum = pgEnum("otp_purpose", ["registration", "monthly"]);
+
 // ================= ROLES =================
 export const roleModel = pgTable("roles", {
   roleId: serial("role_id").primaryKey(),
@@ -59,6 +61,20 @@ export const userModel = pgTable("users", {
     .$onUpdate(() => new Date()),
 });
 
+export const otpVerificationModel = pgTable("otp_verification", {
+  otpId: serial("otp_id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => userModel.userId, { onDelete: "cascade" }),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  otpHash: varchar("otp_hash", { length: 255 }).notNull(),
+  purpose: otpPurposeEnum("purpose").notNull(),
+  isUsed: boolean("is_used").notNull().default(false),
+  resendCount: integer("resend_count").notNull().default(0),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const rolePermissionsModel = pgTable(
   "role_permissions",
   {
@@ -69,7 +85,7 @@ export const rolePermissionsModel = pgTable(
       .notNull()
       .references(() => permissionsModel.id, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.roleId, t.permissionId] })]
+  (t) => [primaryKey({ columns: [t.roleId, t.permissionId] })],
 );
 
 export const userRolesModel = pgTable(
@@ -82,7 +98,7 @@ export const userRolesModel = pgTable(
       .notNull()
       .references(() => roleModel.roleId, { onDelete: "cascade" }),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.roleId] })]
+  (t) => [primaryKey({ columns: [t.userId, t.roleId] })],
 );
 
 // ================= CATEGORIES =================
@@ -184,7 +200,7 @@ export const ordersDetailsModel = pgTable("orders_details", {
   ordersDetailsId: serial("orders_details_id").primaryKey(),
   ordersMasterId: integer("orders_master_id").references(
     () => ordersMasterModel.ordersMasterId,
-    { onDelete: "set null" }
+    { onDelete: "set null" },
   ),
   productId: integer("product_id")
     .notNull()
@@ -230,7 +246,7 @@ export const rolePermissionsRelations = relations(
       fields: [rolePermissionsModel.permissionId],
       references: [permissionsModel.id],
     }),
-  })
+  }),
 );
 
 export const userRolesRelations = relations(userRolesModel, ({ one }) => ({
@@ -286,7 +302,7 @@ export const orderDetailsRelations = relations(
       fields: [ordersDetailsModel.ordersMasterId],
       references: [ordersMasterModel.ordersMasterId],
     }),
-  })
+  }),
 );
 
 // ================= TYPES =================

@@ -7,11 +7,14 @@ import { eq } from "drizzle-orm";
 import {
   changePassword,
   createUser,
+  findUserByPhone,
   getUserById,
   getUsers,
   loginUser,
   updateUser,
+  verifyRegistration,
 } from "../services/auth.service";
+import { resendOtp, verifyOtp } from "../services/otp.service";
 
 const loginSchema = z.object({
   phone: z
@@ -135,6 +138,78 @@ export const register = async (
         },
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyRegistrationController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { phone, otpCode } = req.body;
+
+    if (!phone || !otpCode) {
+      res
+        .status(400)
+        .json({ status: "fail", message: "Phone and OTP are required" });
+      return;
+    }
+
+    // 1. Find the user
+    const user = await findUserByPhone(phone);
+    if (!user) {
+      res.status(404).json({ status: "fail", message: "User not found" });
+      return;
+    }
+
+    // 2. If they are already active, no need to verify again
+    if (user.active) {
+      res
+        .status(400)
+        .json({
+          status: "fail",
+          message: "Account is already verified. Please login.",
+        });
+      return;
+    }
+
+    // 3. Verify the OTP (this will throw an error if wrong/expired)
+    await verifyOtp(user.userId, otpCode, "registration");
+
+    // 4. Activate the user
+    await verifyRegistration(user.userId);
+
+    res.status(200).json({
+      status: "success",
+      message: "Account verified successfully. You can now login.",
+    });
+  } catch (error) {
+    next(error); // passes OTP errors to your global error handler
+  }
+};
+
+export const resendRegistrationOtpController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { phone } = req.body;
+    const user = await findUserByPhone(phone);
+
+    if (!user) {
+      res.status(404).json({ status: "fail", message: "User not found" });
+      return;
+    }
+
+    await resendOtp(user.userId, phone, "registration");
+
+    res
+      .status(200)
+      .json({ status: "success", message: "OTP resent successfully" });
   } catch (error) {
     next(error);
   }

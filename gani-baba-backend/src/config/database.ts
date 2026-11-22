@@ -5,28 +5,17 @@ import * as schema from "../schemas";
 
 dotenv.config();
 
-// Define the connection configuration type
-interface DbConfig {
-  host: string;
-  user: string;
-  password: string;
-  database: string;
-  port: number;
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is missing from .env file");
 }
 
-// Create the connection configuration object
-const dbConfig: DbConfig = {
-  host: process.env.DB_HOST || "",
-  user: process.env.DB_USER || "",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "",
-  port: parseInt(process.env.DB_PORT || "5432", 10),
-};
-
-// Create a connection pool
+// Create a connection pool using the full URL
 const pool = new Pool({
-  ...dbConfig,
+  connectionString: process.env.DATABASE_URL,
   max: 10, // Adjust this value based on your needs
+  ssl: {
+    rejectUnauthorized: false, // <--- Crucial for Neon / Cloud databases
+  },
 });
 
 // Create and export the Drizzle ORM instance

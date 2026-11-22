@@ -27,6 +27,24 @@ export async function registerUser(data: RegisterRequest) {
   })
 }
 
+export async function verifyRegistration(data: { phone: string; otpCode: string }) {
+  return fetchApi<{ status: string; message: string }>({
+    url: 'api/auth/verify-registration',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: data,
+  })
+}
+
+export async function resendRegistrationOtp(data: { phone: string }) {
+  return fetchApi<{ status: string; message: string }>({
+    url: 'api/auth/resend-otp', // You'll need this backend route later
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: data,
+  })
+}
+
 export async function signIn(data: { phone: string; password: string }) {
   return fetchApi<SignInResponse>({
     url: 'api/auth/login',
