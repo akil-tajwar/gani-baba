@@ -63,7 +63,6 @@ export const RegisterResponseSchema = z.object({
 export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
 
 // ---------- Sign In ----------
-
 export const SignInRequestSchema = z.object({
   phone: z
     .string()
@@ -135,7 +134,7 @@ export const productSchema = z.object({
   price: z.number().int().nonnegative(),
   discount: z.number().int().min(0).max(100).default(0),
   categoryId: z.number(),
-  brandId: z.number(),
+  brandId: z.number().nullable().optional(),
   isAvailable: z.boolean().default(true),
   // returned by the API (read-only)
   photoUrl: z.string().optional(),

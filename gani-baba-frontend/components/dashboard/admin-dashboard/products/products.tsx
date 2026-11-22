@@ -73,7 +73,7 @@ const emptyProduct = (): CreateProductType => ({
   price: 0,
   discount: 0,
   categoryId: 0,
-  brandId: 0,
+  brandId: null, // <-- Changed to null
   isAvailable: true,
 })
 
@@ -154,7 +154,10 @@ const Products = () => {
   ) => {
     const { name, value } = e.target
     if (name === 'price' || name === 'discount') {
-      setFormData((prev) => ({ ...prev, [name]: Math.round(Number(value)) || 0 }))
+      setFormData((prev) => ({
+        ...prev,
+        [name]: Math.round(Number(value)) || 0,
+      }))
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }))
     }
@@ -193,7 +196,7 @@ const Products = () => {
       price: product.price,
       discount: product.discount ?? 0,
       categoryId: product.categoryId,
-      brandId: product.brandId,
+      brandId: product.brandId ?? null, // <-- Handle null from DB
       isAvailable: product.isAvailable ?? true,
     })
     setPhotoFile(null)
@@ -226,11 +229,12 @@ const Products = () => {
       e.preventDefault()
       if (!token) return
 
-      if (!formData.categoryId || !formData.brandId) {
+      // Only category is required now
+      if (!formData.categoryId) {
         toast({
           title: 'Missing fields',
           variant: 'destructive',
-          description: 'Please select a category and a brand.',
+          description: 'Please select a category.',
         })
         return
       }
@@ -246,7 +250,6 @@ const Products = () => {
       try {
         setIsSubmitting(true)
 
-        // Only send the fields the backend accepts
         const productPayload = {
           productCode: formData.productCode || undefined,
           name: formData.name,
@@ -254,7 +257,7 @@ const Products = () => {
           price: formData.price,
           discount: formData.discount,
           categoryId: formData.categoryId,
-          brandId: formData.brandId,
+          brandId: formData.brandId || null, // <-- Send null if not selected
           isAvailable: formData.isAvailable,
         }
 
@@ -468,7 +471,9 @@ const Products = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteClick(product.productId as number)}
+                      onClick={() =>
+                        handleDeleteClick(product.productId as number)
+                      }
                     >
                       <Trash2 className="w-4 h-4 text-red-600" />
                     </Button>
@@ -487,7 +492,9 @@ const Products = () => {
             <PaginationItem>
               <PaginationPrevious
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                className={
+                  currentPage === 1 ? 'pointer-events-none opacity-50' : ''
+                }
               />
             </PaginationItem>
             {[...Array(totalPages)].map((_, index) => (
@@ -612,7 +619,7 @@ const Products = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="brandId">Brand*</Label>
+              <Label htmlFor="brandId">Brand (Optional)</Label>
               <CustomCombobox
                 items={brands
                   .filter((b) => b.brandId !== undefined)
@@ -633,10 +640,10 @@ const Products = () => {
                 onChange={(value) =>
                   setFormData((prev) => ({
                     ...prev,
-                    brandId: value ? Number(value.id) : 0,
+                    brandId: value ? Number(value.id) : null, // <-- Handle null
                   }))
                 }
-                placeholder="Select brand"
+                placeholder="Select brand (optional)"
               />
             </div>
 

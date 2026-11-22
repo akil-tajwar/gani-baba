@@ -157,7 +157,6 @@ export const productsModel = pgTable("products", {
     .notNull()
     .references(() => categoriesModel.categoryId, { onDelete: "cascade" }),
   brandId: integer("brand_id")
-    .notNull()
     .references(() => brandsModel.brandId, { onDelete: "cascade" }),
   isAvailable: boolean("is_available").default(true),
   createdBy: integer("created_by").notNull(),
