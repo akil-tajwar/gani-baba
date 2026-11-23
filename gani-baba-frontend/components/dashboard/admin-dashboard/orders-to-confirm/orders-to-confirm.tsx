@@ -413,7 +413,7 @@ export default function OrdersToConfirm() {
                   </TableCell>
                   <TableCell>৳{order.orderMaster.totalAmount}</TableCell>
                   <TableCell>
-                    {formatDate(order.orderMaster.createdAt)}
+                    {formatDate(order.orderMaster.createdAt ?? undefined)}
                   </TableCell>
                   <TableCell className="">
                     {order.orderMaster.address}

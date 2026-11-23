@@ -73,15 +73,15 @@ and `footer.tsx` with `<Image src="/logo.png" … />`.
 |---|---|
 | `/` | Home: hero, categories, offers, top brands, products by category |
 | `/category-products/[subCategoryId]` | One category (the param holds the **categoryId**) with brand/price filters |
-| `/men-products` | **All Products** — filters: category, brand, price. `?brand=ID`, `?category=ID` preselect |
-| `/kids-products` | **All Brands** grid → links to `/men-products?brand=ID` |
+| `/products` | **All Products** — filters: category, brand, price. `?brand=ID`, `?category=ID` preselect |
+| `/kids-products` | **All Brands** grid → links to `/products?brand=ID` |
 | `/flash-sale-products` | **Special Offers** (every product with a discount) |
 | `/product-details/[id]` | Product page |
 | `/checkout`, `/thank-you`, `/profile` | Customer flow |
 | `/dashboard/categories` | Categories **and** Brands (tabs) |
 | `/dashboard/products`, `/orders-to-confirm`, `/confirmed-orders` | Admin |
 
-The folder names `men-products`, `kids-products` and `flash-sale-products` are
+The folder names `products`, `kids-products` and `flash-sale-products` are
 kept from the original file structure; they only appear in URLs.
 
 ## API contract this frontend expects

@@ -20,7 +20,7 @@ app.use(
     ) => {
       const allowedOrigins = [
         "http://localhost:3000",
-        "https://benign-fashion-frontend-pearl.vercel.app"
+        "https://gani-baba-frontend-pearl.vercel.app"
       ];
 
       // Allow non-browser requests (no origin) and whitelisted domains

@@ -201,7 +201,7 @@ export default function ProductDetails() {
 
               {product.brandName && (
                 <Link
-                  href={`/men-products?brand=${product.brandId}`}
+                  href={`/products?brand=${product.brandId}`}
                   className="text-xs font-medium uppercase tracking-[0.25em] text-primary transition-colors hover:text-secondary"
                 >
                   {product.brandName}

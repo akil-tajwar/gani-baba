@@ -14,7 +14,7 @@ interface CategoryProductsDisplayProps {
   products: GetProductType[]
   loading?: boolean
   error?: string
-  /** Pre-select a brand in the filter (used by /men-products?brand=ID) */
+  /** Pre-select a brand in the filter (used by /products?brand=ID) */
   initialBrandId?: number | null
   /** Show a category filter too (used on the all-products page) */
   showCategoryFilter?: boolean
@@ -59,6 +59,7 @@ export default function CategoryProductsDisplay({
   const brandOptions = useMemo(() => {
     const map = new Map<number, { id: number; name: string; count: number }>()
     products.forEach((p) => {
+      if (p.brandId == null) return
       const cur = map.get(p.brandId)
       if (cur) cur.count += 1
       else map.set(p.brandId, { id: p.brandId, name: p.brandName ?? 'Brand', count: 1 })
@@ -69,6 +70,7 @@ export default function CategoryProductsDisplay({
   const categoryOptions = useMemo(() => {
     const map = new Map<number, { id: number; name: string; count: number }>()
     products.forEach((p) => {
+      if (p.categoryId == null) return
       const cur = map.get(p.categoryId)
       if (cur) cur.count += 1
       else map.set(p.categoryId, { id: p.categoryId, name: p.categoryName ?? 'Category', count: 1 })
@@ -81,8 +83,11 @@ export default function CategoryProductsDisplay({
     const max = maxPrice ? Number(maxPrice) : null
 
     const list = products.filter((p) => {
-      if (selectedBrands.length && !selectedBrands.includes(p.brandId)) return false
-      if (selectedCategories.length && !selectedCategories.includes(p.categoryId))
+      if (selectedBrands.length && (p.brandId == null || !selectedBrands.includes(p.brandId))) return false
+      if (
+        selectedCategories.length &&
+        (p.categoryId == null || !selectedCategories.includes(p.categoryId))
+      )
         return false
       if (inStockOnly && p.isAvailable === false) return false
       const price = finalPrice(p)

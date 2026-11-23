@@ -12,22 +12,8 @@ import type { Config } from 'tailwindcss'
  *
  * Change those two hex values and every shade below follows.
  */
-type AlphaArg = { opacityValue?: string }
-
-const withAlpha =
-  (css: string) =>
-  ({ opacityValue }: AlphaArg) => {
-    if (opacityValue === undefined) return css
-    const n = Number(opacityValue)
-    // numeric alpha, e.g. bg-primary/50
-    if (!Number.isNaN(n)) {
-      return n === 1
-        ? css
-        : `color-mix(in srgb, ${css} ${n * 100}%, transparent)`
-    }
-    // Tailwind passes "var(--tw-bg-opacity)" for plain utilities like bg-primary
-    return `color-mix(in srgb, ${css} calc(${opacityValue} * 100%), transparent)`
-  }
+const withAlpha = (css: string): string =>
+  `color-mix(in srgb, ${css} calc(<alpha-value> * 100%), transparent)`
 
 const mix = (variable: string, other: 'white' | 'black', pct: number) =>
   `color-mix(in srgb, var(${variable}) ${pct}%, ${other})`

@@ -254,7 +254,7 @@ export default function Home() {
                       direction="none"
                     >
                       <Link
-                        href={`/men-products?brand=${brand.brandId}`}
+                        href={`/products?brand=${brand.brandId}`}
                         className="group relative flex items-center justify-center h-24 md:h-28 bg-surface px-3 text-center text-sm uppercase tracking-[0.18em] font-medium text-secondary transition-colors duration-300 hover:bg-white hover:text-primary"
                       >
                         {brand.name}

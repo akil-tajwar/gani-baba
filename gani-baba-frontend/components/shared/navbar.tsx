@@ -45,7 +45,7 @@ interface NavbarProps {
 
 const navLinks = [
   { label: 'Home', href: '/' },
-  { label: 'Products', href: '/men-products' },
+  { label: 'Products', href: '/products' },
   { label: 'Brands', href: '/kids-products' },
   { label: 'Offers', href: '/flash-sale-products' },
 ]
@@ -232,7 +232,7 @@ export default function Navbar({
                           {brands.slice(0, 8).map((brand) => (
                             <li key={brand.brandId}>
                               <Link
-                                href={`/men-products?brand=${brand.brandId}`}
+                                href={`/products?brand=${brand.brandId}`}
                                 onClick={() => setShowCategoryMenu(false)}
                                 className="block py-2 text-sm text-secondary/80 hover:text-primary hover:translate-x-1 transition-all"
                               >
@@ -412,7 +412,7 @@ export default function Navbar({
                 {brands.map((brand) => (
                   <li key={brand.brandId}>
                     <Link
-                      href={`/men-products?brand=${brand.brandId}`}
+                      href={`/products?brand=${brand.brandId}`}
                       onClick={() => setIsSidebarOpen(false)}
                       className="block px-3 py-2 text-sm text-gray-600 hover:text-primary hover:bg-surface"
                     >

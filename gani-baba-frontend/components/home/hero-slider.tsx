@@ -27,7 +27,7 @@ const slides: {
     subtitle: 'by Gani Baba, for you',
     text: 'Commodes, basins and accessories from trusted brands.',
     cta: 'Shop all products',
-    href: '/men-products',
+    href: '/products',
     image: '/banner1.jpg',
   },
   {
