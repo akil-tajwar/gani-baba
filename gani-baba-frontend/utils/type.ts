@@ -195,4 +195,6 @@ export const userSchema = z.object({
   createdAt: z.date(),
   updatedAt: z.date(),
 })
-export type GetUsersType = z.infer<typeof userSchema>
+export type GetUsersType = z.infer<typeof userSchema> & {
+  roleName: string
+}

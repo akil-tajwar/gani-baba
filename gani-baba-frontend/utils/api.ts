@@ -55,8 +55,8 @@ export async function signIn(data: { phone: string; password: string }) {
 }
 
 export async function getUsers(token: string) {
-  return fetchApi<{ status: string; data: UserType[] }>({
-    url: 'api/auth/get-users',
+  return fetchApi<{ status: string; data: GetUsersType[] }>({
+    url: 'api/auth/get-all-users',
     method: 'GET',
     headers: { Authorization: token, 'Content-Type': 'application/json' },
   })
@@ -88,6 +88,51 @@ export async function updateUser(
       Authorization: `${token}`,
     },
     body: data, // send updated fields
+  })
+}
+
+export async function deleteUser(token: string, id: number) {
+  return fetchApi<{ id: number }>({
+    url: `api/auth/delete-user/${id}`, // Matches your router.delete
+    method: 'DELETE',
+    headers: { 
+      Authorization: `${token}`, 
+      'Content-Type': 'application/json' 
+    },
+  })
+}
+
+// 2. Toggle User Active/Inactive Status
+export async function updateUserStatus(
+  token: string,
+  id: number,
+  active: boolean
+) {
+  return fetchApi<{ id: number; active: boolean }>({
+    url: `api/auth/toggle-user-status/${id}`, // Matches your router.patch
+    method: 'PATCH',
+    headers: { 
+      'Content-Type': 'application/json', 
+      Authorization: `${token}` 
+    },
+    body: { active },
+  })
+}
+
+// 3. Switch User Role (Admin <-> User)
+export async function updateUserRole(
+  token: string,
+  id: number,
+  roleId: number
+) {
+  return fetchApi<UserType>({
+    url: `api/auth/switch-user-role/${id}`, // Matches your router.patch
+    method: 'PATCH',
+    headers: { 
+      'Content-Type': 'application/json', 
+      Authorization: `${token}` 
+    },
+    body: { roleId },
   })
 }
 

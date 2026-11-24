@@ -7,10 +7,13 @@ import { eq } from "drizzle-orm";
 import {
   changePassword,
   createUser,
+  deleteUser,
   findUserByPhone,
   getUserById,
   getUsers,
   loginUser,
+  switchUserRole,
+  toggleUserStatus,
   updateUser,
   verifyRegistration,
 } from "../services/auth.service";
@@ -364,10 +367,96 @@ export const getUsersController = async (
   req: Request,
   res: Response,
   next: NextFunction,
-): Promise<void> => {
+) => {
   try {
+    // requirePermission(req, "view_users");
     const users = await getUsers();
-    res.status(200).json({ status: "success", data: users });
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteUserController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const id = parseId(req.params.userId);
+    if (id === null) {
+      res.status(400).json({ status: "fail", message: "Invalid userId" });
+      return;
+    }
+
+    const deleted = await deleteUser(id);
+    if (!deleted) {
+      res.status(404).json({ status: "fail", message: "User not found" });
+      return;
+    }
+
+    res.status(200).json({ status: "success", message: "User deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleUserStatusController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const id = parseId(req.params.userId);
+    if (id === null) {
+      res.status(400).json({ status: "fail", message: "Invalid userId" });
+      return;
+    }
+
+    const { active } = req.body;
+    if (typeof active !== "boolean") {
+      res.status(400).json({ status: "fail", message: "Active status must be a boolean" });
+      return;
+    }
+
+    const updated = await toggleUserStatus(id, active);
+    if (!updated) {
+      res.status(404).json({ status: "fail", message: "User not found" });
+      return;
+    }
+
+    res.status(200).json({ status: "success", data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const switchUserRoleController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const id = parseId(req.params.userId);
+    if (id === null) {
+      res.status(400).json({ status: "fail", message: "Invalid userId" });
+      return;
+    }
+
+    const { roleId } = req.body;
+    
+    if (!roleId || typeof roleId !== "number") {
+      res.status(400).json({ status: "fail", message: "A valid roleId is required" });
+      return;
+    }
+
+    const updatedUser = await switchUserRole(id, roleId);
+
+    res.status(200).json({ 
+      status: "success", 
+      message: "User role updated successfully", 
+      data: { user: updatedUser } 
+    });
   } catch (error) {
     next(error);
   }

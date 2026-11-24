@@ -299,3 +299,71 @@ export const changePassword = async (
     .set({ password: hashedPassword })
     .where(eq(userModel.userId, userId));
 };
+
+export const deleteUser = async (userId: number) => {
+  const [deletedUser] = await db
+    .delete(userModel)
+    .where(eq(userModel.userId, userId))
+    .returning({ id: userModel.userId });
+    
+  return deletedUser;
+};
+
+export const toggleUserStatus = async (userId: number, active: boolean) => {
+  const [updatedUser] = await db
+    .update(userModel)
+    .set({ active })
+    .where(eq(userModel.userId, userId))
+    .returning({ id: userModel.userId, active: userModel.active });
+    
+  return updatedUser;
+};
+
+export const switchUserRole = async (userId: number, newRoleId: number) => {
+  try {
+    const result = await db.transaction(async (tx) => {
+      // 1. Check if the new role exists
+      const roleExists = await tx
+        .select()
+        .from(roleModel)
+        .where(eq(roleModel.roleId, newRoleId))
+        .limit(1);
+
+      if (roleExists.length === 0) {
+        throw BadRequestError("Role not found");
+      }
+
+      // 2. Update the main users table
+      const [updatedUser] = await tx
+        .update(userModel)
+        .set({ roleId: newRoleId })
+        .where(eq(userModel.userId, userId))
+        .returning(safeUserColumns);
+
+      if (!updatedUser) {
+        throw BadRequestError("User not found");
+      }
+
+      // 3. Update the user_roles join table
+      // First, clear their existing roles
+      await tx
+        .delete(userRolesModel)
+        .where(eq(userRolesModel.userId, userId));
+
+      // Then, insert the new role
+      await tx.insert(userRolesModel).values({
+        userId: userId,
+        roleId: newRoleId,
+      });
+
+      return updatedUser;
+    });
+
+    return result;
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw BadRequestError("Role update conflicted with another constraint");
+    }
+    throw error;
+  }
+};
