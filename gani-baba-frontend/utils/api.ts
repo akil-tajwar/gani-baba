@@ -353,14 +353,27 @@ export async function fetchProductById(token: string, id: number) {
   })
 }
 
-export async function createOrder(token: string, formData: CreateOrderType) {
+const getAuthHeader = (token: string | null) => {
+  if (!token) return undefined;
+  // If the token already has "Bearer ", don't double it
+  return { Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` };
+};
+
+export async function requestOrderOtp(phone: string, token: string | null) {
+  return fetchApi<{ success: boolean; message: string }>({
+    url: 'api/orders/request-otp',
+    method: 'POST',
+    headers: getAuthHeader(token), // ✅ Safely formats the header
+    body: { phone },
+  })
+}
+
+export async function createOrder(token: string | null, formData: CreateOrderType) {
   return fetchApiWithFile<CreateOrderType>({
     url: 'api/orders/create',
     method: 'POST',
-    headers: {
-      Authorization: `${token}`,
-    },
-    body: formData, // Pass FormData directly
+    headers: getAuthHeader(token), // ✅ Safely formats the header
+    body: formData,
   })
 }
 

@@ -6,16 +6,24 @@ import {
   productsModel,
 } from "../schemas";
 import type { CreateOrderType } from "../controllers/order.controller";
-import { hasRecentMonthlyVerification, verifyOtp } from "./otp.service";
+import {
+  hasRecentMonthlyVerification,
+  verifyOtp,
+  verifyPhoneOtp,
+} from "./otp.service";
 import { BadRequestError } from "./utils/errors.utils";
 
 /**
- * CREATE ORDER (MASTER + DETAILS)
+ * CREATE ORDER
+ * - Order is inserted ONLY after verification succeeds.
+ * - Logged-in user with fresh 30-day window → skip OTP.
+ * - Logged-in user with expired window → verify "order" OTP by phone.
+ * - Guest → verify "order" OTP by phone.
  */
 export const createOrder = async (
   payload: CreateOrderType,
-  userId: number,
-  otpCode?: string // <--- Optional OTP passed from frontend if required
+  userId: number | null,
+  otpCode?: string,
 ) => {
   const { orderMaster, orderDetails } = payload;
   const method = orderMaster.method;
@@ -25,30 +33,38 @@ export const createOrder = async (
   }
 
   // ==========================================
-  // OTP VERIFICATION CHECK
+  // VERIFICATION — must succeed BEFORE insert
   // ==========================================
-  const isVerifiedRecently = await hasRecentMonthlyVerification(userId);
+  if (userId !== null) {
+    const isVerifiedRecently = await hasRecentMonthlyVerification(userId);
 
-  if (!isVerifiedRecently) {
-    // If they haven't verified in 30 days, they MUST provide an OTP
+    if (!isVerifiedRecently) {
+      if (!otpCode) {
+        throw BadRequestError(
+          "Verification required. Please request an OTP to continue.",
+        );
+      }
+      // Verify by phone using "order" purpose — works whether the
+      // OTP was requested keyed on userId or keyed on phone (guests).
+      // If you prefer monthly keyed on userId, swap to:
+      //   await verifyOtp(userId, otpCode, "monthly");
+      await verifyPhoneOtp(orderMaster.phone, otpCode, "order");
+    }
+  } else {
     if (!otpCode) {
       throw BadRequestError(
-        "Monthly security verification required. Please request an OTP to continue."
+        "Phone verification required. Please request an OTP to continue.",
       );
     }
-
-    // Verify the OTP (this throws an error if the OTP is wrong/expired)
-    await verifyOtp(userId, otpCode, "monthly");
+    await verifyPhoneOtp(orderMaster.phone, otpCode, "order");
   }
   // ==========================================
 
-  // Proceed with standard order creation
   return await db.transaction(async (trx) => {
-    // 1️⃣ Insert order master
     const [master] = await trx
       .insert(ordersMasterModel)
       .values({
-        userId,
+        userId: userId ?? null,
         couponId: orderMaster.couponId ?? null,
         fullName: orderMaster.fullName,
         division: orderMaster.division,
@@ -61,21 +77,20 @@ export const createOrder = async (
         billingPhone: orderMaster.billingPhone ?? orderMaster.phone,
         transactionId: orderMaster.transactionId ?? "",
         totalAmount: orderMaster.totalAmount,
-        createdBy: userId,
+        createdBy: userId ?? null,
       })
       .returning({ ordersMasterId: ordersMasterModel.ordersMasterId });
 
     const ordersMasterId = master.ordersMasterId;
 
-    // 2️⃣ Insert order details
     await trx.insert(ordersDetailsModel).values(
       orderDetails.map((item) => ({
         ordersMasterId,
         productId: item.productId,
         quantity: item.quantity,
         amount: item.amount,
-        createdBy: userId,
-      }))
+        createdBy: userId ?? null,
+      })),
     );
 
     return {
@@ -85,9 +100,7 @@ export const createOrder = async (
   });
 };
 
-/**
- * GET ALL ORDERS (MASTER + DETAILS)
- */
+/** GET ALL ORDERS */
 export const getAllOrders = async () => {
   const masters = await db
     .select()
@@ -105,17 +118,13 @@ export const getAllOrders = async () => {
         orderMaster: master,
         orderDetails: details,
       };
-    })
+    }),
   );
 };
 
-/**
- * GET ORDERS BY USER ID (MASTER + DETAILS WITH PRODUCT NAME)
- */
+/** GET ORDERS BY USER ID (guests excluded) */
 export const getOrdersByUserId = async (userId: number) => {
-  if (!userId || Number.isNaN(userId)) {
-    return [];
-  }
+  if (!userId || Number.isNaN(userId)) return [];
 
   const masters = await db
     .select()
@@ -138,7 +147,7 @@ export const getOrdersByUserId = async (userId: number) => {
         .from(ordersDetailsModel)
         .leftJoin(
           productsModel,
-          eq(ordersDetailsModel.productId, productsModel.productId)
+          eq(ordersDetailsModel.productId, productsModel.productId),
         )
         .where(eq(ordersDetailsModel.ordersMasterId, master.ordersMasterId));
 
@@ -146,21 +155,17 @@ export const getOrdersByUserId = async (userId: number) => {
         orderMaster: master,
         orderDetails: details,
       };
-    })
+    }),
   );
 };
 
-/**
- * DELETE ORDER (returns null if the order doesn't exist)
- */
+/** DELETE ORDER */
 export const deleteOrder = async (orderMasterId: number) => {
   return await db.transaction(async (trx) => {
-    // 1️⃣ Delete order details first
     await trx
       .delete(ordersDetailsModel)
       .where(eq(ordersDetailsModel.ordersMasterId, orderMasterId));
 
-    // 2️⃣ Delete order master
     const [deleted] = await trx
       .delete(ordersMasterModel)
       .where(eq(ordersMasterModel.ordersMasterId, orderMasterId))
@@ -168,17 +173,14 @@ export const deleteOrder = async (orderMasterId: number) => {
 
     if (!deleted) return null;
 
-    return {
-      orderMasterId,
-      message: "Order deleted successfully",
-    };
+    return { orderMasterId, message: "Order deleted successfully" };
   });
 };
 
 const setOrderStatus = async (
   orderMasterId: number,
   status: "confirmed" | "delivered",
-  userId: number
+  userId: number,
 ) => {
   const [updated] = await db
     .update(ordersMasterModel)

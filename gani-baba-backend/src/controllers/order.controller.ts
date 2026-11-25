@@ -12,6 +12,7 @@ import { inArray, eq } from "drizzle-orm";
 import { db } from "../config/database";
 import { couponsModel, productsModel } from "../schemas";
 import { requirePermission } from "../services/utils/jwt.utils";
+import { createOtp, resendOtp } from "../services/otp.service";
 
 export const ordersSchema = z.object({
   orderMaster: z.object({
@@ -25,9 +26,7 @@ export const ordersSchema = z.object({
     method: z.enum(["bkash", "nagad", "rocket", "cod"]),
     billingPhone: z.string().max(14).optional(),
     transactionId: z.string().max(255).nullable().optional(),
-    // frontend's claimed total — used only for cross-checking
     totalAmount: z.number().int().nonnegative(),
-    // optional; recomputed server-side regardless
     discountAmount: z.number().int().nonnegative().optional(),
   }),
 
@@ -37,21 +36,27 @@ export const ordersSchema = z.object({
         productId: z.number().int(),
         quantity: z.number().int().min(1).default(1),
         amount: z.number().int().nonnegative(),
-      })
+      }),
     )
     .min(1, "Order must contain at least one item"),
+
+  otpCode: z.string().min(1).optional(),
 });
 
 export type CreateOrderType = z.infer<typeof ordersSchema>;
 export type GetOrderType = z.infer<typeof ordersSchema>;
+
+const phoneSchema = z.object({ phone: z.string().min(10).max(14) });
 
 const parseId = (value: string | undefined): number | null => {
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 };
 
-const getCurrentUserId = (req: Request): number | null =>
-  (req as any).user?.userId ?? null;
+const getCurrentUserId = (req: Request): number | null => {
+  console.log("🚀 ~ getCurrentUserId ~ req:", req)
+  return (req as any).user?.userId ?? null;
+};
 
 const handleError = (error: unknown, res: Response, fallback: string) => {
   if (error instanceof z.ZodError) {
@@ -66,7 +71,6 @@ const handleError = (error: unknown, res: Response, fallback: string) => {
   res.status(500).json({ success: false, message: fallback });
 };
 
-/** YYYY-MM-DD of "now" (server local time) */
 const todayStr = (): string => {
   const d = new Date();
   const y = d.getFullYear();
@@ -75,23 +79,15 @@ const todayStr = (): string => {
   return `${y}-${m}-${day}`;
 };
 
-/** Normalise ISO/date string to YYYY-MM-DD */
 const toDateOnly = (s: string | null | undefined): string | null => {
   if (!s) return null;
   return s.length >= 10 ? s.slice(0, 10) : s;
 };
 
-/**
- * Recalculate subtotal from DB prices, validate coupon, compute discount.
- * Throws an Error with a user-readable message if any check fails.
- */
 const computeServerTotals = async (payload: CreateOrderType) => {
   const { orderDetails, orderMaster } = payload;
 
-  // ---- 1. Fetch products from DB ----
-  const productIds = Array.from(
-    new Set(orderDetails.map((d) => d.productId))
-  );
+  const productIds = Array.from(new Set(orderDetails.map((d) => d.productId)));
 
   const dbProducts = await db
     .select()
@@ -106,7 +102,6 @@ const computeServerTotals = async (payload: CreateOrderType) => {
 
   const productMap = new Map(dbProducts.map((p) => [p.productId, p]));
 
-  // ---- 2. Recalculate subtotal + verify line amounts ----
   let serverSubtotal = 0;
 
   for (const line of orderDetails) {
@@ -114,28 +109,22 @@ const computeServerTotals = async (payload: CreateOrderType) => {
     const basePrice = Number(product.price);
     const discountPct = Number(product.discount ?? 0);
 
-    // Effective unit price after product-level discount
     const effectiveUnitPrice =
-      discountPct > 0
-        ? basePrice - (basePrice * discountPct) / 100
-        : basePrice;
+      discountPct > 0 ? basePrice - (basePrice * discountPct) / 100 : basePrice;
 
-    const expectedLine = Math.round(
-      effectiveUnitPrice * line.quantity
-    );
+    const expectedLine = Math.round(effectiveUnitPrice * line.quantity);
 
     if (Math.round(line.amount) !== expectedLine) {
       throw new Error(
         `Price mismatch for product ${line.productId}: ` +
           `expected ${expectedLine}, received ${line.amount}. ` +
-          `Prices may have changed — please refresh your cart.`
+          `Prices may have changed — please refresh your cart.`,
       );
     }
 
     serverSubtotal += expectedLine;
   }
 
-  // ---- 3. Validate coupon from DB (unchanged) ----
   let serverDiscount = 0;
 
   if (orderMaster.couponId != null) {
@@ -152,13 +141,12 @@ const computeServerTotals = async (payload: CreateOrderType) => {
     const from = toDateOnly(coupon.fromDate as unknown as string);
     const to = toDateOnly(coupon.toDate as unknown as string | null);
 
-    if (from && today < from)
-      throw new Error("This coupon is not valid yet.");
+    if (from && today < from) throw new Error("This coupon is not valid yet.");
     if (to && today > to) throw new Error("This coupon has expired.");
 
     if (serverSubtotal < (coupon.minimumOrder ?? 0)) {
       throw new Error(
-        `Order total must be at least ৳${coupon.minimumOrder} to use this coupon.`
+        `Order total must be at least ৳${coupon.minimumOrder} to use this coupon.`,
       );
     }
 
@@ -173,31 +161,29 @@ const computeServerTotals = async (payload: CreateOrderType) => {
 
     serverDiscount = Math.min(
       Math.round(serverDiscount),
-      Math.round(serverSubtotal)
+      Math.round(serverSubtotal),
     );
   }
 
-  // ---- 4. Compute true total ----
-  const serverTotal = Math.max(
-    0,
-    Math.round(serverSubtotal) - serverDiscount
-  );
+  const serverTotal = Math.max(0, Math.round(serverSubtotal) - serverDiscount);
 
   return { serverSubtotal, serverDiscount, serverTotal };
 };
 
+// ================================================================
+// CREATE ORDER — public (guest-friendly)
+// ================================================================
 export const createOrderController = async (req: Request, res: Response) => {
   try {
-    const userId = getCurrentUserId(req);
-    if (userId === null) {
-      res.status(401).json({ success: false, message: "Unauthorized" });
-      return;
-    }
+    const userId = getCurrentUserId(req); // number | null — guests allowed
 
     const payload = ordersSchema.parse(req.body);
 
-    // ---- Server-side amount verification ----
-    let totals: { serverSubtotal: number; serverDiscount: number; serverTotal: number };
+    let totals: {
+      serverSubtotal: number;
+      serverDiscount: number;
+      serverTotal: number;
+    };
     try {
       totals = await computeServerTotals(payload);
     } catch (err) {
@@ -208,7 +194,6 @@ export const createOrderController = async (req: Request, res: Response) => {
     }
 
     const claimedTotal = Math.round(payload.orderMaster.totalAmount);
-
     if (claimedTotal !== totals.serverTotal) {
       res.status(400).json({
         success: false,
@@ -224,17 +209,18 @@ export const createOrderController = async (req: Request, res: Response) => {
       return;
     }
 
-    // ---- Insert (using the server-authoritative total) ----
+    // Insert — service verifies OTP (guest or expired-window user) BEFORE insert
     const result = await createOrder(
       {
         ...payload,
         orderMaster: {
           ...payload.orderMaster,
-          totalAmount: totals.serverTotal, // trust server, not client
+          totalAmount: totals.serverTotal,
           discountAmount: totals.serverDiscount,
         },
       },
-      userId
+      userId,
+      payload.otpCode,
     );
 
     res.status(201).json({
@@ -243,13 +229,48 @@ export const createOrderController = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error) {
+    // Surface the OTP-required / invalid-OTP error as a 400, not 500
+    if (error instanceof Error && !(error instanceof z.ZodError)) {
+      const msg = error.message || "";
+      if (
+        msg.includes("OTP") ||
+        msg.includes("Verification") ||
+        msg.includes("verify")
+      ) {
+        res.status(400).json({ success: false, message: msg });
+        return;
+      }
+    }
     handleError(error, res, "Failed to create order");
   }
 };
 
-/**
- * GET ALL ORDERS
- */
+// ================================================================
+// OTP REQUEST — public (guests + logged-in re-verification)
+// ================================================================
+export const requestOrderOtpController = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { phone } = phoneSchema.parse(req.body);
+    const userId = getCurrentUserId(req); // null for guests
+
+    try {
+      await createOtp(userId, phone, "order");
+    } catch {
+      await resendOtp(userId, phone, "order");
+    }
+
+    res.status(200).json({ success: true, message: "OTP sent" });
+  } catch (error) {
+    handleError(error, res, "Failed to send OTP");
+  }
+};
+
+// ================================================================
+// REST (unchanged)
+// ================================================================
 export const getAllOrdersController = async (_req: Request, res: Response) => {
   try {
     requirePermission(_req, "view_all_orders");
@@ -262,7 +283,7 @@ export const getAllOrdersController = async (_req: Request, res: Response) => {
 
 export const getOrdersByUserIdController = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     requirePermission(req, "view_orders");
@@ -271,7 +292,6 @@ export const getOrdersByUserIdController = async (
       res.status(400).json({ success: false, message: "Invalid userId" });
       return;
     }
-
     const result = await getOrdersByUserId(userId);
     res.status(200).json(result);
   } catch (error) {
@@ -289,13 +309,11 @@ export const deleteOrderController = async (req: Request, res: Response) => {
         .json({ success: false, message: "Invalid orderMasterId" });
       return;
     }
-
     const result = await deleteOrder(orderMasterId);
     if (!result) {
       res.status(404).json({ success: false, message: "Order not found" });
       return;
     }
-
     res.status(200).json({
       success: true,
       message: result.message,
@@ -316,19 +334,16 @@ export const confirmOrderController = async (req: Request, res: Response) => {
         .json({ success: false, message: "Invalid orderMasterId" });
       return;
     }
-
     const userId = getCurrentUserId(req);
     if (userId === null) {
       res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
-
     const result = await confirmOrder(orderMasterId, userId);
     if (!result) {
       res.status(404).json({ success: false, message: "Order not found" });
       return;
     }
-
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     handleError(error, res, "Failed to confirm order");
@@ -345,19 +360,16 @@ export const completeOrderController = async (req: Request, res: Response) => {
         .json({ success: false, message: "Invalid orderMasterId" });
       return;
     }
-
     const userId = getCurrentUserId(req);
     if (userId === null) {
       res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
-
     const result = await completeOrder(orderMasterId, userId);
     if (!result) {
       res.status(404).json({ success: false, message: "Order not found" });
       return;
     }
-
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     handleError(error, res, "Failed to complete order");

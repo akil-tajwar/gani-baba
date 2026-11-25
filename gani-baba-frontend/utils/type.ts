@@ -147,38 +147,87 @@ export type GetProductType = z.infer<typeof productSchema>
 
 export type PaymentMethod = 'bkash' | 'nagad' | 'rocket' | 'cod'
 
-export const ordersSchema = z.object({
+// ============================================================
+// CREATE — payload the client sends
+// ============================================================
+export const createOrderSchema = z.object({
   orderMaster: z.object({
-    ordersMasterId: z.number().optional(),
-    userId: z.number().nullable().optional(),
+    couponId: z.number().int().nullable().optional(),
     fullName: z.string().max(255),
     division: z.string().max(15),
     district: z.string().max(15),
     address: z.string().max(100),
     phone: z.string().max(14),
     email: z.string().max(50).nullable().optional(),
-    status: z.enum(['pending', 'confirmed', 'delivered']).default('pending'),
     method: z.enum(['bkash', 'nagad', 'rocket', 'cod']),
-    billingPhone: z.string().max(14).nullable().optional(),
+    billingPhone: z.string().max(14).optional(),
     transactionId: z.string().max(255).nullable().optional(),
+    totalAmount: z.number().int().nonnegative(), // client-claimed total, server cross-checks
+    discountAmount: z.number().int().nonnegative().optional(),
+  }),
+
+  orderDetails: z
+    .array(
+      z.object({
+        productId: z.number().int(),
+        quantity: z.number().int().min(1).default(1),
+        amount: z.number().int().nonnegative(),
+      })
+    )
+    .min(1, 'Order must contain at least one item'),
+
+  otpCode: z.string().min(1).optional(), // required for guests; optional for logged-in users
+})
+
+export type CreateOrderType = z.infer<typeof createOrderSchema>
+
+// ============================================================
+// GET — response shape (DB rows + joined productName)
+// ============================================================
+export const getOrderSchema = z.object({
+  orderMaster: z.object({
+    ordersMasterId: z.number(),
+    userId: z.number().nullable(),
+    couponId: z.number().nullable(),
+    fullName: z.string(),
+    division: z.string(),
+    district: z.string(),
+    address: z.string(),
+    phone: z.string(),
+    email: z.string().nullable(),
+    status: z.enum(['pending', 'confirmed', 'delivered']),
+    method: z.enum(['bkash', 'nagad', 'rocket', 'cod']),
+    billingPhone: z.string(),
+    transactionId: z.string(),
     totalAmount: z.number(),
-    createdAt: z.string().nullable().optional(),
+    createdBy: z.number().nullable(),
+    createdAt: z.string().nullable(),
+    updatedBy: z.number().nullable().optional(),
+    updatedAt: z.string().nullable().optional(),
   }),
 
   orderDetails: z.array(
     z.object({
-      ordersDetailsId: z.number().optional(),
-      ordersMasterId: z.number().optional(),
+      ordersDetailsId: z.number(),
+      ordersMasterId: z.number().nullable(),
       productId: z.number(),
-      productName: z.string().nullable().optional(),
-      quantity: z.number().default(1),
+      productName: z.string().nullable().optional(), // from join in getOrdersByUserId
+      quantity: z.number(),
       amount: z.number(),
-      createdAt: z.string().nullable().optional(),
+      createdBy: z.number().nullable(),
+      createdAt: z.string().nullable(),
+      updatedBy: z.number().nullable().optional(),
+      updatedAt: z.string().nullable().optional(),
     })
   ),
 })
-export type CreateOrderType = z.infer<typeof ordersSchema>
-export type GetOrderType = z.infer<typeof ordersSchema>
+
+export type GetOrderType = z.infer<typeof getOrderSchema>
+
+// ============================================================
+// Convenience exports for arrays (used by API helpers)
+// ============================================================
+export type GetOrdersResponse = GetOrderType[]
 
 export const userSchema = z.object({
   userId: z.number().optional(), // auto increment

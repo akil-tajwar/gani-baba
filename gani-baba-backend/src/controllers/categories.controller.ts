@@ -7,6 +7,7 @@ import {
   updateCategory,
   deleteCategory,
 } from "../services/categories.service";
+import { requirePermission } from "../services/utils/jwt.utils";
 
 export const categorySchema = z.object({
   name: z.string().min(1).max(100),
@@ -27,6 +28,7 @@ export const createCategoryController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "create_category");
     console.log("HEADERS:", req.headers.authorization);
     console.log("REQ.USER:", req.user);
     const userId = getCurrentUserId(req);
@@ -86,6 +88,7 @@ export const updateCategoryController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "update_category");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid id" });
@@ -117,6 +120,7 @@ export const deleteCategoryController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "delete_category");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid id" });

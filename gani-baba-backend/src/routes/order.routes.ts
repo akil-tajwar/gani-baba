@@ -1,15 +1,38 @@
-import { Router } from 'express'
-import { completeOrderController, confirmOrderController, createOrderController, deleteOrderController, getAllOrdersController, getOrdersByUserIdController } from '../controllers/order.controller'
-import { authenticateUser } from '../middlewares/auth.middleware'
+import { Router } from "express";
+import {
+  completeOrderController,
+  confirmOrderController,
+  createOrderController,
+  deleteOrderController,
+  getAllOrdersController,
+  getOrdersByUserIdController,
+  requestOrderOtpController,
+} from "../controllers/order.controller";
+import {
+  authenticateUser,
+  optionalAuthenticateUser,
+} from "../middlewares/auth.middleware";
 
-const router = Router()
+const router = Router();
 
-router.post('/create', createOrderController)
-router.get('/getAll', authenticateUser, getAllOrdersController)
-router.get('/getByUserId/:userId', authenticateUser, getOrdersByUserIdController)
-router.delete('/delete-order/:orderMasterId', authenticateUser, deleteOrderController)
-router.patch('/confirm-order/:id', authenticateUser, confirmOrderController)
-router.patch('/complete-order/:id', authenticateUser, completeOrderController)
+router.post("/create", optionalAuthenticateUser, createOrderController);
+router.post(
+  "/request-otp",
+  optionalAuthenticateUser,
+  requestOrderOtpController,
+);
+router.get("/getAll", authenticateUser, getAllOrdersController);
+router.get(
+  "/getByUserId/:userId",
+  authenticateUser,
+  getOrdersByUserIdController,
+);
+router.delete(
+  "/delete-order/:orderMasterId",
+  authenticateUser,
+  deleteOrderController,
+);
+router.patch("/confirm-order/:id", authenticateUser, confirmOrderController);
+router.patch("/complete-order/:id", authenticateUser, completeOrderController);
 
-
-export default router
+export default router;

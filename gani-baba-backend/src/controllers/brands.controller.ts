@@ -7,6 +7,7 @@ import {
   updateBrand,
   deleteBrand,
 } from "../services/brands.service";
+import { requirePermission } from "../services/utils/jwt.utils";
 
 export const brandSchema = z.object({
   name: z.string().min(1).max(100),
@@ -27,6 +28,7 @@ export const createBrandController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "create_brand");
     console.log("HEADERS:", req.headers.authorization);
     console.log("REQ.USER:", req.user);
     const userId = getCurrentUserId(req);
@@ -86,6 +88,7 @@ export const updateBrandController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "update_brand");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid id" });
@@ -117,6 +120,7 @@ export const deleteBrandController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "delete_brand");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid id" });

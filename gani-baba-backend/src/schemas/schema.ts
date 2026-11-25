@@ -27,7 +27,11 @@ export const paymentMethodEnum = pgEnum("payment_method", [
 
 export const couponTypeEnum = pgEnum("coupon_type", ["amount", "percentage"]);
 
-export const otpPurposeEnum = pgEnum("otp_purpose", ["registration", "monthly"]);
+export const otpPurposeEnum = pgEnum("otp_purpose", [
+  "registration",
+  "monthly",
+  "order",
+]);
 
 // ================= ROLES =================
 export const roleModel = pgTable("roles", {
@@ -63,15 +67,15 @@ export const userModel = pgTable("users", {
 
 export const otpVerificationModel = pgTable("otp_verification", {
   otpId: serial("otp_id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => userModel.userId, { onDelete: "cascade" }),
-  phone: varchar("phone", { length: 20 }).notNull(),
+  userId: integer("user_id").references(() => userModel.userId, {
+    onDelete: "cascade",
+  }),
+  phone: varchar("phone", { length: 14 }).notNull(),
   otpHash: varchar("otp_hash", { length: 255 }).notNull(),
   purpose: otpPurposeEnum("purpose").notNull(),
-  isUsed: boolean("is_used").notNull().default(false),
-  resendCount: integer("resend_count").notNull().default(0),
+  isUsed: boolean("is_used").default(false).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  resendCount: integer("resend_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -156,8 +160,9 @@ export const productsModel = pgTable("products", {
   categoryId: integer("category_id")
     .notNull()
     .references(() => categoriesModel.categoryId, { onDelete: "cascade" }),
-  brandId: integer("brand_id")
-    .references(() => brandsModel.brandId, { onDelete: "cascade" }),
+  brandId: integer("brand_id").references(() => brandsModel.brandId, {
+    onDelete: "cascade",
+  }),
   isAvailable: boolean("is_available").default(true),
   createdBy: integer("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -170,9 +175,9 @@ export const productsModel = pgTable("products", {
 // ================= ORDERS =================
 export const ordersMasterModel = pgTable("orders_master", {
   ordersMasterId: serial("orders_master_id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => userModel.userId, { onDelete: "cascade" }),
+  userId: integer("user_id").references(() => userModel.userId, {
+    onDelete: "cascade",
+  }), // nullable
   couponId: integer("coupon_id").references(() => couponsModel.couponId, {
     onDelete: "set null",
   }),
@@ -187,7 +192,7 @@ export const ordersMasterModel = pgTable("orders_master", {
   billingPhone: varchar("billing_phone", { length: 14 }).notNull(),
   transactionId: varchar("transaction_id", { length: 255 }).notNull(),
   totalAmount: integer("total_amount").notNull(),
-  createdBy: integer("created_by").notNull(),
+  createdBy: integer("created_by"), // ✅ nullable (null = guest)
   createdAt: timestamp("created_at").defaultNow(),
   updatedBy: integer("updated_by"),
   updatedAt: timestamp("updated_at")
@@ -206,7 +211,7 @@ export const ordersDetailsModel = pgTable("orders_details", {
     .references(() => productsModel.productId, { onDelete: "cascade" }),
   quantity: integer("quantity").notNull().default(1),
   amount: integer("amount").notNull(),
-  createdBy: integer("created_by").notNull(),
+  createdBy: integer("created_by"), // ✅ nullable
   createdAt: timestamp("created_at").defaultNow(),
   updatedBy: integer("updated_by"),
   updatedAt: timestamp("updated_at")

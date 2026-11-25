@@ -16,6 +16,9 @@ import {
   Ticket,
   Tag,
   Check,
+  ShieldCheck,
+  Loader2,
+  X,
 } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -23,12 +26,16 @@ import { toast } from '@/hooks/use-toast'
 import { CustomCombobox } from '@/utils/custom-combobox'
 import { useCart } from '@/hooks/use-cart'
 import { locationData, siteConfig } from '@/utils/constants'
-import { createOrder, fetchCoupons, getUserByUserId } from '@/utils/api'
+import {
+  createOrder,
+  fetchCoupons,
+  getUserByUserId,
+  requestOrderOtp,
+} from '@/utils/api'
 import { useAtom } from 'jotai'
 import { tokenAtom, useInitializeUser, userDataAtom } from '@/utils/user'
 import { GetCouponType, GetUsersType } from '@/utils/type'
 
-/** Today as YYYY-MM-DD (local date, no time) */
 const todayStr = () => {
   const d = new Date()
   const y = d.getFullYear()
@@ -37,10 +44,19 @@ const todayStr = () => {
   return `${y}-${m}-${day}`
 }
 
-/** Normalise a date string (handles "YYYY-MM-DD" and full ISO) to YYYY-MM-DD */
 const toDateOnly = (s: string | null | undefined) => {
   if (!s) return null
   return s.length >= 10 ? s.slice(0, 10) : s
+}
+
+/** Detect "verification required" style errors from backend */
+const isVerificationError = (err: unknown): boolean => {
+  const msg =
+    (err as any)?.message ??
+    (err as any)?.response?.data?.message ??
+    (typeof err === 'string' ? err : '')
+  const s = String(msg).toLowerCase()
+  return s.includes('otp') || s.includes('verification') || s.includes('verify')
 }
 
 export default function CheckoutPage() {
@@ -68,20 +84,27 @@ export default function CheckoutPage() {
 
   const { cartItems, clearCart } = useCart()
 
+  // ---------------- OTP modal state ----------------
+  const [otpModalOpen, setOtpModalOpen] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpSending, setOtpSending] = useState(false)
+  const [otpVerifying, setOtpVerifying] = useState(false)
+  const [otpSentOnce, setOtpSentOnce] = useState(false)
+  const [otpError, setOtpError] = useState('')
+
   // ---------------- Coupon state ----------------
   const [coupons, setCoupons] = useState<GetCouponType[]>([])
   const [couponsLoading, setCouponsLoading] = useState(true)
   const [selectedCouponId, setSelectedCouponId] = useState<number | null>(null)
 
-  // ---- subtotal (before discount) ----
+  // ---- subtotal ----
   const subtotal = useMemo(
     () =>
       cartItems.reduce((total, item) => total + item.price * item.quantity, 0),
     [cartItems]
   )
 
-  // ---- eligible coupons (date + active check) ----
-  // minimumOrder is checked separately per-card so we can show disabled state.
+  // ---- eligible coupons ----
   const eligibleCoupons = useMemo(() => {
     const today = todayStr()
     return coupons.filter((c) => {
@@ -89,19 +112,17 @@ export default function CheckoutPage() {
       const from = toDateOnly(c.fromDate)
       const to = toDateOnly(c.toDate)
       if (!from) return false
-      if (today < from) return false // not started yet
-      if (to && today > to) return false // expired
+      if (today < from) return false
+      if (to && today > to) return false
       return true
     })
   }, [coupons])
 
-  // ---- selected coupon ----
   const selectedCoupon = useMemo(
     () => eligibleCoupons.find((c) => c.couponId === selectedCouponId) || null,
     [eligibleCoupons, selectedCouponId]
   )
 
-  // If selected coupon becomes ineligible (e.g. cart drops below minOrder), clear it
   useEffect(() => {
     if (!selectedCoupon) {
       setSelectedCouponId(null)
@@ -112,16 +133,13 @@ export default function CheckoutPage() {
     }
   }, [subtotal, selectedCoupon])
 
-  // ---- discount calculation ----
   const discountAmount = useMemo(() => {
     if (!selectedCoupon) return 0
     if (subtotal < selectedCoupon.minimumOrder) return 0
-
     let amount = 0
     if (selectedCoupon.couponType === 'amount') {
       amount = selectedCoupon.discount
     } else {
-      // percentage
       amount = (subtotal * selectedCoupon.discount) / 100
       if (
         selectedCoupon.maxDiscount != null &&
@@ -130,7 +148,6 @@ export default function CheckoutPage() {
         amount = selectedCoupon.maxDiscount
       }
     }
-    // never exceed subtotal
     return Math.min(Math.round(amount), Math.round(subtotal))
   }, [selectedCoupon, subtotal])
 
@@ -139,16 +156,12 @@ export default function CheckoutPage() {
     [subtotal, discountAmount]
   )
 
-  // ---- fetch coupons ----
+  // ---- fetch coupons (public endpoint) ----
   useEffect(() => {
     const loadCoupons = async () => {
-      if (!token) {
-        setCouponsLoading(false)
-        return
-      }
       try {
         setCouponsLoading(true)
-        const res = await fetchCoupons(token)
+        const res = await fetchCoupons(token ?? '')
         setCoupons(res.data ?? [])
       } catch (err) {
         console.error('Failed to load coupons:', err)
@@ -159,16 +172,14 @@ export default function CheckoutPage() {
     loadCoupons()
   }, [token])
 
-  // Fetch user info and populate form when userData.userId is available
+  // ---- fetch user info (logged-in only) ----
   useEffect(() => {
     const fetchUserInfo = async () => {
       if (!userData?.userId || !token) return
-
       try {
         setUserInfoLoading(true)
         const response = await getUserByUserId(token, userData.userId)
         const userInfo: GetUsersType | null = response.data
-
         if (userInfo) {
           setFormData((prev) => ({
             ...prev,
@@ -182,22 +193,15 @@ export default function CheckoutPage() {
         }
       } catch (error) {
         console.error('Failed to fetch user info:', error)
-        toast({
-          title: 'Error',
-          variant: 'destructive',
-          description: `Failed to load user information`,
-        })
       } finally {
         setUserInfoLoading(false)
       }
     }
-
     fetchUserInfo()
   }, [userData?.userId, token])
 
   const isCod = formData.method === 'cod'
 
-  // Get available districts based on selected division
   const getAvailableDistricts = () => {
     if (!formData.division) return []
     return (
@@ -208,19 +212,12 @@ export default function CheckoutPage() {
   }
 
   const handleDivisionChange = (value: { id: string; name: string } | null) => {
-    setFormData({
-      ...formData,
-      division: value?.id || '',
-      district: '',
-    })
+    setFormData({ ...formData, division: value?.id || '', district: '' })
     setErrors({ ...errors, division: '' })
   }
 
   const handleDistrictChange = (value: { id: string; name: string } | null) => {
-    setFormData({
-      ...formData,
-      district: value?.id || '',
-    })
+    setFormData({ ...formData, district: value?.id || '' })
     setErrors({ ...errors, district: '' })
   }
 
@@ -240,7 +237,6 @@ export default function CheckoutPage() {
     if (formData.phone && !/^01[3-9]\d{8}$/.test(formData.phone)) {
       newErrors.phone = 'Invalid phone number format'
     }
-
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format'
     }
@@ -249,6 +245,41 @@ export default function CheckoutPage() {
     return Object.keys(newErrors).length === 0
   }
 
+  const buildPayload = (otp?: string) => ({
+    orderMaster: {
+      fullName: formData.fullName,
+      phone: formData.phone,
+      email: formData.email || null,
+      address: formData.address,
+      division: formData.division,
+      district: formData.district,
+      method: formData.method,
+      billingPhone: isCod ? formData.phone : formData.billingPhone,
+      transactionId: isCod ? '' : formData.transactionId,
+      totalAmount: grandTotal,
+      couponId: selectedCoupon?.couponId ?? null,
+      discountAmount,
+    },
+    orderDetails: cartItems.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      amount: Math.round(item.price * item.quantity),
+    })),
+    ...(otp ? { otpCode: otp } : {}),
+  })
+
+  /** Send an order attempt to backend. Returns true on success. */
+  const tryPlaceOrder = async (otp?: string): Promise<boolean> => {
+    try {
+      await createOrder(token ?? null, buildPayload(otp) as any)
+      return true
+    } catch (err: any) {
+      // Bubble up so caller can decide whether to open OTP modal
+      throw err
+    }
+  }
+
+  // ---------------- Place Order (entry point) ----------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -273,44 +304,93 @@ export default function CheckoutPage() {
     setIsLoading(true)
 
     try {
-      const payload = {
-        orderMaster: {
-          fullName: formData.fullName,
-          phone: formData.phone,
-          email: formData.email || null,
-          address: formData.address,
-          division: formData.division,
-          district: formData.district,
-          status: 'pending' as 'pending' | 'confirmed' | 'delivered',
-          method: formData.method,
-          billingPhone: isCod ? formData.phone : formData.billingPhone,
-          transactionId: isCod ? '' : formData.transactionId,
-          totalAmount: grandTotal, // ← discounted total
-          userId: userData?.userId || null,
-          // Optional — include if your backend stores them:
-          couponId: selectedCoupon?.couponId ?? null,
-          couponCode: selectedCoupon?.code ?? null,
-          discountAmount,
-        },
-        orderDetails: cartItems.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          amount: Math.round(item.price * item.quantity),
-        })),
+      // First attempt: no OTP.
+      // - Logged-in user with valid 30-day window → backend inserts directly.
+      // - Anyone needing verification → backend throws "verification required".
+      const ok = await tryPlaceOrder()
+      if (ok) {
+        completeSuccess()
+        return
       }
-
-      await createOrder(token, payload)
-      router.push('/thank-you')
-      clearCart()
-    } catch (error) {
-      console.error('Order error:', error)
-      toast({
-        title: 'Error',
-        variant: 'destructive',
-        description: `Failed to place order. Please try again.`,
-      })
+    } catch (err: any) {
+      if (isVerificationError(err)) {
+        // Open OTP modal; user will re-trigger order after verifying
+        openOtpModal()
+      } else {
+        console.error('Order error:', err)
+        toast({
+          title: 'Error',
+          variant: 'destructive',
+          description:
+            err?.message ||
+            err?.response?.data?.message ||
+            'Failed to place order. Please try again.',
+        })
+      }
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const completeSuccess = () => {
+    setOtpModalOpen(false)
+    setOtpCode('')
+    setOtpSentOnce(false)
+    clearCart()
+    router.push('/thank-you')
+  }
+
+  // ---------------- OTP modal actions ----------------
+  const openOtpModal = () => {
+    setOtpModalOpen(true)
+    setOtpError('')
+    // Auto-send an OTP immediately when modal opens (best UX)
+    void sendOtp()
+  }
+
+  const sendOtp = async () => {
+    try {
+      setOtpSending(true)
+      setOtpError('')
+      await requestOrderOtp(formData.phone, token ?? null)
+      setOtpSentOnce(true)
+      toast({
+        title: 'OTP sent',
+        description: `Verification code sent to ${formData.phone}.`,
+      })
+    } catch (err: any) {
+      const msg =
+        err?.message ||
+        err?.response?.data?.message ||
+        'Could not send OTP. Please try again.'
+      setOtpError(msg)
+      toast({ title: 'Error', variant: 'destructive', description: msg })
+    } finally {
+      setOtpSending(false)
+    }
+  }
+
+  const verifyAndPlaceOrder = async () => {
+    if (!otpCode.trim()) {
+      setOtpError('Please enter the OTP.')
+      return
+    }
+
+    try {
+      setOtpVerifying(true)
+      setOtpError('')
+
+      // Backend verifies OTP inside createOrder; on success, order is inserted
+      await createOrder(token ?? null, buildPayload(otpCode.trim()) as any)
+      completeSuccess()
+    } catch (err: any) {
+      const msg =
+        err?.message ||
+        err?.response?.data?.message ||
+        'Invalid or expired OTP. Please try again.'
+      setOtpError(msg)
+    } finally {
+      setOtpVerifying(false)
     }
   }
 
@@ -326,9 +406,9 @@ export default function CheckoutPage() {
           onSubmit={handleSubmit}
           className="grid grid-cols-1 lg:grid-cols-2 gap-8"
         >
-          {/* Left Side - Delivery Information */}
+          {/* ---------------- LEFT SIDE ---------------- */}
           <div className="space-y-6">
-            {/* Personal Information */}
+            {/* Personal Info */}
             <div className="rounded-lg shadow-lg p-6 bg-gray-50 border border-gray-200">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-primary-100 rounded-lg">
@@ -527,7 +607,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Payment Method */}
+            {/* Payment Method — unchanged structure */}
             <div className="rounded-lg shadow-lg p-6 bg-gray-50 border border-gray-200">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-primary-100 rounded-lg">
@@ -538,7 +618,6 @@ export default function CheckoutPage() {
                 </h2>
               </div>
 
-              {/* Payment Instructions */}
               {isCod ? (
                 <div className="mb-6 bg-primary-50 border border-primary-200 rounded-lg p-4 text-sm text-gray-700">
                   <h3 className="font-semibold text-gray-900 mb-1">
@@ -601,6 +680,7 @@ export default function CheckoutPage() {
                 }
                 className="space-y-3"
               >
+                {/* bkash */}
                 <div
                   onClick={() => setFormData({ ...formData, method: 'bkash' })}
                   className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-pink-500 transition-colors cursor-pointer"
@@ -612,17 +692,16 @@ export default function CheckoutPage() {
                   >
                     bKash
                   </Label>
-                  <div className="text-pink-600 font-bold text-lg">
-                    <Image
-                      height={50}
-                      width={50}
-                      src={'/bkash.png'}
-                      alt={'bkash logo'}
-                      className="object-cover border rounded-xl"
-                    />
-                  </div>
+                  <Image
+                    height={50}
+                    width={50}
+                    src="/bkash.png"
+                    alt="bkash logo"
+                    className="object-cover border rounded-xl"
+                  />
                 </div>
 
+                {/* nagad */}
                 <div
                   onClick={() => setFormData({ ...formData, method: 'nagad' })}
                   className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-orange-500 transition-colors cursor-pointer"
@@ -634,17 +713,16 @@ export default function CheckoutPage() {
                   >
                     Nagad
                   </Label>
-                  <div className="text-orange-600 font-bold text-lg">
-                    <Image
-                      height={50}
-                      width={50}
-                      src={'/nagad.webp'}
-                      alt={'nagad logo'}
-                      className="object-cover border rounded-md"
-                    />
-                  </div>
+                  <Image
+                    height={50}
+                    width={50}
+                    src="/nagad.webp"
+                    alt="nagad logo"
+                    className="object-cover border rounded-md"
+                  />
                 </div>
 
+                {/* rocket */}
                 <div
                   onClick={() => setFormData({ ...formData, method: 'rocket' })}
                   className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-purple-500 transition-colors cursor-pointer"
@@ -656,16 +734,16 @@ export default function CheckoutPage() {
                   >
                     Rocket
                   </Label>
-                  <div className="text-purple-600 font-bold text-lg">
-                    <Image
-                      height={50}
-                      width={50}
-                      src={'/rocket.jpg'}
-                      alt={'rocket logo'}
-                      className="object-cover border rounded-md"
-                    />
-                  </div>
+                  <Image
+                    height={50}
+                    width={50}
+                    src="/rocket.jpg"
+                    alt="rocket logo"
+                    className="object-cover border rounded-md"
+                  />
                 </div>
+
+                {/* cod */}
                 <div
                   onClick={() => setFormData({ ...formData, method: 'cod' })}
                   className="flex items-center space-x-3 border-2 border-gray-200 rounded-lg p-4 hover:border-primary transition-colors cursor-pointer"
@@ -751,7 +829,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Right Side - Order Summary */}
+          {/* ---------------- RIGHT SIDE ---------------- */}
           <div className="lg:sticky lg:top-20 h-fit">
             <div className="rounded-lg shadow-lg p-6 bg-gray-50 border border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">
@@ -774,7 +852,6 @@ export default function CheckoutPage() {
                         className="object-cover border rounded-md"
                       />
                     </div>
-
                     <div className="flex-1 pr-6">
                       <h3 className="font-medium text-lg truncate">
                         {item.name}
@@ -794,7 +871,7 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              {/* ===== COUPON SECTION ===== */}
+              {/* COUPON */}
               <div className="border-t border-gray-200 pt-4 mb-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Ticket className="w-5 h-5 text-primary" />
@@ -893,21 +970,18 @@ export default function CheckoutPage() {
                   </div>
                 )}
               </div>
-              {/* ===== /COUPON SECTION ===== */}
 
               <div className="border-t border-gray-200 pt-4 space-y-3">
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Subtotal</span>
                   <span>৳{Math.round(subtotal)}</span>
                 </div>
-
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Discount</span>
                     <span>− ৳{discountAmount}</span>
                   </div>
                 )}
-
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Delivery Fee</span>
                   <span className="text-green-600 font-medium">FREE</span>
@@ -936,6 +1010,94 @@ export default function CheckoutPage() {
           </div>
         </form>
       </div>
+
+      {/* ===================== OTP MODAL ===================== */}
+      {otpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
+            <button
+              type="button"
+              onClick={() => {
+                setOtpModalOpen(false)
+                setOtpError('')
+              }}
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-primary-100 rounded-lg">
+                <ShieldCheck className="w-6 h-6 text-primary-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Verify Your Phone
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Enter the code sent to <strong>{formData.phone}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm font-medium text-gray-700">
+                  OTP Code
+                </Label>
+                <Input
+                  value={otpCode}
+                  onChange={(e) => {
+                    setOtpCode(e.target.value)
+                    setOtpError('')
+                  }}
+                  placeholder="Enter 6-digit OTP"
+                  maxLength={6}
+                  inputMode="numeric"
+                  className="mt-1 text-center tracking-[0.5em] text-lg"
+                  autoFocus
+                />
+              </div>
+
+              {otpError && <p className="text-red-500 text-xs">{otpError}</p>}
+
+              <Button
+                type="button"
+                onClick={verifyAndPlaceOrder}
+                disabled={otpVerifying}
+                className="w-full bg-primary text-white h-11"
+              >
+                {otpVerifying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Verifying & placing order...
+                  </>
+                ) : (
+                  'Verify & Place Order'
+                )}
+              </Button>
+
+              <div className="flex items-center justify-between text-sm">
+                <button
+                  type="button"
+                  onClick={sendOtp}
+                  disabled={otpSending}
+                  className="text-primary underline hover:text-primary-700 disabled:opacity-50"
+                >
+                  {otpSending
+                    ? 'Sending...'
+                    : otpSentOnce
+                      ? 'Resend OTP'
+                      : 'Send OTP'}
+                </button>
+                <span className="text-xs text-gray-500">
+                  Code valid for 5 minutes
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
