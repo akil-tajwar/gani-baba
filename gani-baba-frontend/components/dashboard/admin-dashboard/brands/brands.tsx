@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DialogFooter } from '@/components/ui/dialog'
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Dices } from 'lucide-react'
 import type { GetBrandType } from '@/utils/type'
 import {
   createBrand,
@@ -145,7 +145,7 @@ const Brands = () => {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="bg-primary p-2 rounded-md text-white">
-            <Plus />
+            <Dices />
           </div>
           <h2 className="text-lg font-semibold">Brands</h2>
         </div>

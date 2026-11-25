@@ -16,6 +16,9 @@ import {
   CreateCouponType,
   GetCouponType,
   UserType,
+  DashboardRange,
+  DashboardOverviewType,
+  dashboardOverviewSchema,
 } from '@/utils/type'
 
 export async function registerUser(data: RegisterRequest) {
@@ -27,7 +30,10 @@ export async function registerUser(data: RegisterRequest) {
   })
 }
 
-export async function verifyRegistration(data: { phone: string; otpCode: string }) {
+export async function verifyRegistration(data: {
+  phone: string
+  otpCode: string
+}) {
   return fetchApi<{ status: string; message: string }>({
     url: 'api/auth/verify-registration',
     method: 'POST',
@@ -95,9 +101,9 @@ export async function deleteUser(token: string, id: number) {
   return fetchApi<{ id: number }>({
     url: `api/auth/delete-user/${id}`, // Matches your router.delete
     method: 'DELETE',
-    headers: { 
-      Authorization: `${token}`, 
-      'Content-Type': 'application/json' 
+    headers: {
+      Authorization: `${token}`,
+      'Content-Type': 'application/json',
     },
   })
 }
@@ -111,9 +117,9 @@ export async function updateUserStatus(
   return fetchApi<{ id: number; active: boolean }>({
     url: `api/auth/toggle-user-status/${id}`, // Matches your router.patch
     method: 'PATCH',
-    headers: { 
-      'Content-Type': 'application/json', 
-      Authorization: `${token}` 
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `${token}`,
     },
     body: { active },
   })
@@ -128,9 +134,9 @@ export async function updateUserRole(
   return fetchApi<UserType>({
     url: `api/auth/switch-user-role/${id}`, // Matches your router.patch
     method: 'PATCH',
-    headers: { 
-      'Content-Type': 'application/json', 
-      Authorization: `${token}` 
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `${token}`,
     },
     body: { roleId },
   })
@@ -146,6 +152,18 @@ export async function createCategory(token: string, data: CreateCategoryType) {
       Authorization: `${token}`,
     },
     body: data,
+  })
+}
+
+export async function fetchDashboardOverview(
+  token: string,
+  range: DashboardRange
+) {
+  return fetchApi<DashboardOverviewType>({
+    url: `api/dashboard/overview?range=${range}`,
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: `${token}` },
+    schema: dashboardOverviewSchema,
   })
 }
 

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DialogFooter } from '@/components/ui/dialog'
-import { Plus, Trash2, ArrowUpDown, Search, Edit, X } from 'lucide-react'
+import { Plus, Trash2, ArrowUpDown, Search, Edit, X, BriefcaseBusiness } from 'lucide-react'
 import {
   Pagination,
   PaginationContent,
@@ -358,7 +358,7 @@ const Products = () => {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2 mb-4">
           <div className="bg-primary p-2 rounded-md text-white">
-            <Plus />
+            <BriefcaseBusiness />
           </div>
           <h2 className="text-lg font-semibold">Products</h2>
         </div>

@@ -198,3 +198,104 @@ export const userSchema = z.object({
 export type GetUsersType = z.infer<typeof userSchema> & {
   roleName: string
 }
+
+export const dashboardRangeSchema = z.enum(['7D', '15D', '1M', '3M', '6M', '1Y'])
+export type DashboardRange = z.infer<typeof dashboardRangeSchema>
+
+export const dashboardPeriodStatsSchema = z.object({
+  revenue: z.number(),
+  totalOrders: z.number(),
+  soldOrders: z.number(),
+  pendingOrders: z.number(),
+  confirmedOrders: z.number(),
+  deliveredOrders: z.number(),
+  pendingValue: z.number(),
+  itemsSold: z.number(),
+  averageOrderValue: z.number(),
+  newCustomers: z.number(),
+})
+export type DashboardPeriodStats = z.infer<typeof dashboardPeriodStatsSchema>
+
+export const dashboardOverviewSchema = z.object({
+  range: dashboardRangeSchema,
+  from: z.string(),
+  to: z.string(),
+  bucket: z.enum(['day', 'week', 'month']),
+
+  summary: z.object({
+    current: dashboardPeriodStatsSchema,
+    previous: dashboardPeriodStatsSchema,
+  }),
+
+  catalog: z.object({
+    products: z.number(),
+    unavailableProducts: z.number(),
+    categories: z.number(),
+    brands: z.number(),
+    customers: z.number(),
+  }),
+
+  salesTrend: z.array(
+    z.object({
+      date: z.string(),
+      revenue: z.number(),
+      orders: z.number(),
+    })
+  ),
+
+  ordersByStatus: z.array(
+    z.object({
+      status: z.string().nullable(),
+      count: z.number(),
+    })
+  ),
+
+  paymentMethods: z.array(
+    z.object({
+      method: z.string(),
+      count: z.number(),
+      revenue: z.number(),
+    })
+  ),
+
+  topProducts: z.array(
+    z.object({
+      productId: z.number(),
+      name: z.string(),
+      photoUrl: z.string(),
+      brandName: z.string(),
+      quantity: z.number(),
+      revenue: z.number(),
+    })
+  ),
+
+  topCategories: z.array(
+    z.object({
+      categoryId: z.number(),
+      name: z.string(),
+      quantity: z.number(),
+      revenue: z.number(),
+    })
+  ),
+
+  topBrands: z.array(
+    z.object({
+      brandId: z.number(),
+      name: z.string(),
+      quantity: z.number(),
+      revenue: z.number(),
+    })
+  ),
+
+  recentOrders: z.array(
+    z.object({
+      ordersMasterId: z.number(),
+      fullName: z.string(),
+      totalAmount: z.number(),
+      status: z.string().nullable(),
+      method: z.string(),
+      createdAt: z.string().nullable(),
+    })
+  ),
+})
+export type DashboardOverviewType = z.infer<typeof dashboardOverviewSchema>

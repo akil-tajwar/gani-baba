@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { ArrowUpDown, CheckCircle, Search } from 'lucide-react'
+import { ArrowUpDown, CheckCircle, Search, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { completeOrder, fetchAllOrders } from '@/utils/api'
 import type { GetOrderType } from '@/utils/type'
-import { tokenAtom, useInitializeUser, userDataAtom } from '@/utils/user'
+import { tokenAtom, useInitializeUser } from '@/utils/user'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/hooks/use-toast'
@@ -51,9 +51,19 @@ type SortColumn =
   | 'transactionId'
 type SortDirection = 'asc' | 'desc'
 
+const formatDate = (dateString?: string | null) => {
+  if (!dateString) return '-'
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function ConfirmedOrders() {
   useInitializeUser()
-  const [userData] = useAtom(userDataAtom)
   const [token] = useAtom(tokenAtom)
   const router = useRouter()
   const { toast } = useToast()
@@ -67,6 +77,7 @@ export default function ConfirmedOrders() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
+  // Complete order dialog state
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
   const [orderToComplete, setOrderToComplete] = useState<number | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
@@ -76,12 +87,11 @@ export default function ConfirmedOrders() {
     setIsLoading(true)
     try {
       const response = await fetchAllOrders(token)
-      console.log('🚀 ~ fetchOrders ~ response:', response)
       if (response?.error?.status === 401) {
         router.push('/unauthorized-access')
         return
       } else {
-        // Filter only confirmed orders
+        // Filter only confirmed + delivered orders
         const confirmedOrders = (response.data ?? []).filter(
           (order) =>
             order.orderMaster.status === 'confirmed' ||
@@ -108,30 +118,17 @@ export default function ConfirmedOrders() {
   // Filtering orders based on search term
   const filteredOrders = useMemo(() => {
     if (!searchTerm) return orders
+    const q = searchTerm.toLowerCase()
 
     return orders.filter((order) => {
       return (
-        order.orderMaster.fullName
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        order.orderMaster.phone
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        order.orderMaster.email
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        order.orderMaster.division
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        order.orderMaster.district
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        order.orderMaster.method
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        order.orderMaster.transactionId
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
+        order.orderMaster.fullName?.toLowerCase().includes(q) ||
+        order.orderMaster.phone?.toLowerCase().includes(q) ||
+        order.orderMaster.email?.toLowerCase().includes(q) ||
+        order.orderMaster.division?.toLowerCase().includes(q) ||
+        order.orderMaster.district?.toLowerCase().includes(q) ||
+        order.orderMaster.method?.toLowerCase().includes(q) ||
+        order.orderMaster.transactionId?.toLowerCase().includes(q) ||
         order.orderMaster.totalAmount?.toString().includes(searchTerm)
       )
     })
@@ -142,24 +139,19 @@ export default function ConfirmedOrders() {
     const sorted = [...filteredOrders]
     sorted.sort((a, b) => {
       if (sortColumn === 'totalAmount') {
-        return sortDirection === 'asc'
-          ? Number(a.orderMaster[sortColumn]) -
-              Number(b.orderMaster[sortColumn])
-          : Number(b.orderMaster[sortColumn]) -
-              Number(a.orderMaster[sortColumn])
+        const diff =
+          Number(a.orderMaster[sortColumn]) - Number(b.orderMaster[sortColumn])
+        return sortDirection === 'asc' ? diff : -diff
       }
       if (sortColumn === 'createdAt') {
         const dateA = new Date(a.orderMaster.createdAt || '').getTime()
         const dateB = new Date(b.orderMaster.createdAt || '').getTime()
         return sortDirection === 'asc' ? dateA - dateB : dateB - dateA
       }
-      return sortDirection === 'asc'
-        ? String(a.orderMaster[sortColumn] || '').localeCompare(
-            String(b.orderMaster[sortColumn] || '')
-          )
-        : String(b.orderMaster[sortColumn] || '').localeCompare(
-            String(a.orderMaster[sortColumn] || '')
-          )
+      const cmp = String(a.orderMaster[sortColumn] || '').localeCompare(
+        String(b.orderMaster[sortColumn] || '')
+      )
+      return sortDirection === 'asc' ? cmp : -cmp
     })
     return sorted
   }, [filteredOrders, sortColumn, sortDirection])
@@ -221,136 +213,76 @@ export default function ConfirmedOrders() {
     }
   }
 
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return '-'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
+  const SortHead = ({
+    column,
+    children,
+  }: {
+    column: SortColumn
+    children: React.ReactNode
+  }) => (
+    <TableHead onClick={() => handleSort(column)} className="cursor-pointer">
+      <div className="flex items-center gap-1">
+        <span>{children}</span>
+        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+      </div>
+    </TableHead>
+  )
 
   return (
-    <div className="mx-auto py-10">
-      <div className="flex justify-between items-center m-4 mb-6">
-        <h1 className="text-2xl font-bold">Confirmed Orders</h1>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="bg-primary p-2 rounded-md text-white">
+            <Check />
+          </div>
+          <h2 className="text-lg font-semibold">Confirmed Orders</h2>
+        </div>
         <div className="flex items-center gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder="Search orders..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(1)
+              }}
               className="pl-10 w-64"
             />
           </div>
         </div>
       </div>
 
+      {/* Table */}
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader className="bg-primary-100">
             <TableRow>
               <TableHead>Sl No</TableHead>
-              <TableHead
-                onClick={() => handleSort('fullName')}
-                className="cursor-pointer"
-              >
-                <div className="flex items-center gap-1">
-                  <span>Customer Name</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('phone')}
-                className="cursor-pointer"
-              >
-                <div className="flex items-center gap-1">
-                  <span>Phone</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('division')}
-                className="cursor-pointer"
-              >
-                <div className="flex items-center gap-1">
-                  <span>Division</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('district')}
-                className="cursor-pointer"
-              >
-                <div className="flex items-center gap-1">
-                  <span>District</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('method')}
-                className="cursor-pointer"
-              >
-                  Payment Method
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('transactionId')}
-                className="cursor-pointer"
-              >
-                Transaction ID
-                <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('totalAmount')}
-                className="cursor-pointer"
-              >
-                Total Amount
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('createdAt')}
-                className="cursor-pointer"
-              >
-                <div className="flex items-center gap-1">
-                  <span>Order Date</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('address')}
-                className="cursor-pointer"
-              >
-                <div className="flex items-center gap-1">
-                  <span>Address</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </TableHead>
-              <TableHead
-                onClick={() => handleSort('status')}
-                className="cursor-pointer"
-              >
-                <div className="flex items-center gap-1">
-                  <span>status</span>
-                  <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </TableHead>
+              <SortHead column="fullName">Customer Name</SortHead>
+              <SortHead column="phone">Phone</SortHead>
+              <SortHead column="division">Division</SortHead>
+              <SortHead column="district">District</SortHead>
+              <SortHead column="method">Payment Method</SortHead>
+              <SortHead column="transactionId">Transaction ID</SortHead>
+              <SortHead column="totalAmount">Total Amount</SortHead>
+              <SortHead column="createdAt">Order Date</SortHead>
+              <SortHead column="address">Address</SortHead>
+              <SortHead column="status">Status</SortHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-4">
+                <TableCell colSpan={12} className="text-center py-4">
                   Loading orders...
                 </TableCell>
               </TableRow>
             ) : paginatedOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-4">
+                <TableCell colSpan={12} className="text-center py-4">
                   No confirmed orders found
                 </TableCell>
               </TableRow>
@@ -374,12 +306,18 @@ export default function ConfirmedOrders() {
                   <TableCell>
                     {formatDate(order.orderMaster.createdAt)}
                   </TableCell>
-                  <TableCell className="">
-                    {order.orderMaster.address}
-                  </TableCell>
+                  <TableCell>{order.orderMaster.address}</TableCell>
                   <TableCell className="text-sm">
                     <span
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize ${order.orderMaster.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : order.orderMaster.status === 'confirmed' ? 'bg-primary-100 text-primary-800' : order.orderMaster.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize ${
+                        order.orderMaster.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : order.orderMaster.status === 'confirmed'
+                            ? 'bg-primary-100 text-primary-800'
+                            : order.orderMaster.status === 'delivered'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                      }`}
                     >
                       {order.orderMaster.status}
                     </span>
@@ -389,7 +327,9 @@ export default function ConfirmedOrders() {
                       variant="outline"
                       size="sm"
                       disabled={order.orderMaster.status === 'delivered'}
-                      onClick={() => handleCompleteClick(order.orderMaster.ordersMasterId!)}
+                      onClick={() =>
+                        handleCompleteClick(order.orderMaster.ordersMasterId!)
+                      }
                       className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
@@ -402,42 +342,71 @@ export default function ConfirmedOrders() {
           </TableBody>
         </Table>
       </div>
-      <div className="mt-4">
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                className={
-                  currentPage === 1 ? 'pointer-events-none opacity-50' : ''
-                }
-              />
-            </PaginationItem>
-            {[...Array(totalPages)].map((_, index) => (
-              <PaginationItem key={index}>
-                <PaginationLink
-                  onClick={() => setCurrentPage(index + 1)}
-                  isActive={currentPage === index + 1}
-                >
-                  {index + 1}
-                </PaginationLink>
+
+      {/* Pagination */}
+      {sortedOrders.length > 0 && (
+        <div className="mt-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
+                  }
+                  className={
+                    currentPage === 1 ? 'pointer-events-none opacity-50' : ''
+                  }
+                />
               </PaginationItem>
-            ))}
-            <PaginationItem>
-              <PaginationNext
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+
+              {[...Array(totalPages)].map((_, index) => {
+                if (
+                  index === 0 ||
+                  index === totalPages - 1 ||
+                  (index >= currentPage - 2 && index <= currentPage + 2)
+                ) {
+                  return (
+                    <PaginationItem key={`page-${index}`}>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(index + 1)}
+                        isActive={currentPage === index + 1}
+                      >
+                        {index + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                } else if (
+                  index === currentPage - 3 ||
+                  index === currentPage + 3
+                ) {
+                  return (
+                    <PaginationItem key={`ellipsis-${index}`}>
+                      <PaginationLink>...</PaginationLink>
+                    </PaginationItem>
+                  )
                 }
-                className={
-                  currentPage === totalPages
-                    ? 'pointer-events-none opacity-50'
-                    : ''
-                }
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
+
+                return null
+              })}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
+                  className={
+                    currentPage === totalPages
+                      ? 'pointer-events-none opacity-50'
+                      : ''
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
+
+      {/* Complete Order Dialog */}
       <AlertDialog
         open={isCompleteDialogOpen}
         onOpenChange={setIsCompleteDialogOpen}

@@ -9,6 +9,7 @@ import {
   Dices,
   FileChartColumn,
   Home,
+  LayoutDashboard,
   NotebookText,
   Plus,
   Settings,
@@ -43,7 +44,7 @@ export function DashboardSidebar() {
   const navItems = [
     {
       title: 'Dashboard Overview',
-      icon: Home,
+      icon: LayoutDashboard,
       href: '/dashboard/dashboard-overview',
     },
     {

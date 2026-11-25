@@ -323,7 +323,7 @@ export default function Navbar({
                       </DropdownMenuItem>
                       {roleId === 1 && (
                         <DropdownMenuItem
-                          onClick={() => router.push('/dashboard/categories')}
+                          onClick={() => router.push('/dashboard/dashboard-overview')}
                         >
                           Admin Dashboard
                         </DropdownMenuItem>
