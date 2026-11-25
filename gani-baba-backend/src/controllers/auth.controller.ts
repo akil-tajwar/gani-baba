@@ -18,6 +18,7 @@ import {
   verifyRegistration,
 } from "../services/auth.service";
 import { resendOtp, verifyOtp } from "../services/otp.service";
+import { requirePermission } from "../services/utils/jwt.utils";
 
 const loginSchema = z.object({
   phone: z
@@ -224,6 +225,7 @@ export const updateUserController = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    requirePermission(req, "edit_users");
     const id = parseId(req.params.userId);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid userId" });
@@ -283,6 +285,8 @@ export const changePasswordController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "edit_users");
+
     const id = parseId(req.params.userId);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid userId" });
@@ -310,6 +314,8 @@ export const getUsersWithRoles = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "view_users");
+
     const usersWithRoles = await db
       .select({
         userId: userModel.userId,
@@ -344,6 +350,7 @@ export const getUserByIdController = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
+    requirePermission(req, "view_users");
     const id = parseId(req.params.userId);
     if (id === null) {
       res.status(400).json({ message: "Invalid userId" });
@@ -369,7 +376,7 @@ export const getUsersController = async (
   next: NextFunction,
 ) => {
   try {
-    // requirePermission(req, "view_users");
+    requirePermission(req, "view_users");
     const users = await getUsers();
     res.json(users);
   } catch (err) {
@@ -383,6 +390,7 @@ export const deleteUserController = async (
   next: NextFunction
 ) => {
   try {
+    requirePermission(req, "delete_users");
     const id = parseId(req.params.userId);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid userId" });
@@ -407,6 +415,8 @@ export const toggleUserStatusController = async (
   next: NextFunction
 ) => {
   try {
+    requirePermission(req, "edit_user_status");
+
     const id = parseId(req.params.userId);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid userId" });
@@ -437,6 +447,7 @@ export const switchUserRoleController = async (
   next: NextFunction
 ) => {
   try {
+    requirePermission(req, "edit_user_role");
     const id = parseId(req.params.userId);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid userId" });

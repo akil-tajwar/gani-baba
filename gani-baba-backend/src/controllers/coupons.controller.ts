@@ -2,11 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import {
   createCoupon,
-  getCategories,
   getCouponById,
   updateCoupon,
   deleteCoupon,
+  getAllCoupons,
 } from "../services/coupons.service";
+import { requirePermission } from "../services/utils/jwt.utils";
 
 export const couponSchema = z.object({
   code: z.string().min(1).max(50),
@@ -34,6 +35,7 @@ export const createCouponController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "create_coupons");
     console.log("HEADERS:", req.headers.authorization);
     console.log("REQ.USER:", req.user);
     const userId = getCurrentUserId(req);
@@ -50,13 +52,13 @@ export const createCouponController = async (
   }
 };
 
-export const getCategoriesController = async (
-  _: Request,
+export const getAllCouponsController = async (
+  req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const result = await getCategories();
+    const result = await getAllCoupons();
     res.json(result);
   } catch (err) {
     next(err);
@@ -69,6 +71,7 @@ export const getCouponByIdController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "view_coupons");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid id" });
@@ -93,6 +96,7 @@ export const updateCouponController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "edit_coupons");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid id" });
@@ -124,6 +128,7 @@ export const deleteCouponController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "delete_coupons");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid id" });

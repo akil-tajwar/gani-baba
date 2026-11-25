@@ -8,6 +8,7 @@ import {
   updateProduct,
   deleteProduct,
 } from "../services/product.service";
+import { requirePermission } from "../services/utils/jwt.utils";
 
 export const productSchema = z.object({
   productCode: z.string().max(20).optional(),
@@ -45,6 +46,7 @@ const handleError = (err: unknown, res: Response, fallback: string) => {
 // ======================== CREATE ========================
 export const createProductController = async (req: Request, res: Response) => {
   try {
+    requirePermission(req, "create_products");
     console.log("PRODUCTS HEADERS:", req.headers.authorization);
     console.log("PRODUCTS REQ.USER:", req.user);
     const userId = getCurrentUserId(req);
@@ -131,6 +133,7 @@ export const getProductByIdController = async (
 // ======================== UPDATE ========================
 export const updateProductController = async (req: Request, res: Response) => {
   try {
+    requirePermission(req, "edit_products");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ error: "Invalid id" });
@@ -171,6 +174,7 @@ export const deleteProductController = async (
   next: NextFunction,
 ) => {
   try {
+    requirePermission(req, "delete_products");
     const id = parseId(req.params.id);
     if (id === null) {
       res.status(400).json({ status: "error", message: "Invalid id" });

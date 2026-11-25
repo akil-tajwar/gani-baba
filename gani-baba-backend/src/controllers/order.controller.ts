@@ -11,6 +11,7 @@ import {
 import { inArray, eq } from "drizzle-orm";
 import { db } from "../config/database";
 import { couponsModel, productsModel } from "../schemas";
+import { requirePermission } from "../services/utils/jwt.utils";
 
 export const ordersSchema = z.object({
   orderMaster: z.object({
@@ -251,6 +252,7 @@ export const createOrderController = async (req: Request, res: Response) => {
  */
 export const getAllOrdersController = async (_req: Request, res: Response) => {
   try {
+    requirePermission(_req, "view_all_orders");
     const result = await getAllOrders();
     res.status(200).json(result);
   } catch (error) {
@@ -263,6 +265,7 @@ export const getOrdersByUserIdController = async (
   res: Response
 ) => {
   try {
+    requirePermission(req, "view_orders");
     const userId = parseId(req.params.userId);
     if (userId === null) {
       res.status(400).json({ success: false, message: "Invalid userId" });
@@ -278,6 +281,7 @@ export const getOrdersByUserIdController = async (
 
 export const deleteOrderController = async (req: Request, res: Response) => {
   try {
+    requirePermission(req, "delete_orders");
     const orderMasterId = parseId(req.params.orderMasterId);
     if (orderMasterId === null) {
       res
@@ -304,6 +308,7 @@ export const deleteOrderController = async (req: Request, res: Response) => {
 
 export const confirmOrderController = async (req: Request, res: Response) => {
   try {
+    requirePermission(req, "confirm_orders");
     const orderMasterId = parseId(req.params.id);
     if (orderMasterId === null) {
       res
@@ -332,6 +337,7 @@ export const confirmOrderController = async (req: Request, res: Response) => {
 
 export const completeOrderController = async (req: Request, res: Response) => {
   try {
+    requirePermission(req, "complete_orders");
     const orderMasterId = parseId(req.params.id);
     if (orderMasterId === null) {
       res

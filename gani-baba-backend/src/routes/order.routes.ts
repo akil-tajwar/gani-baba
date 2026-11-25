@@ -4,7 +4,7 @@ import { authenticateUser } from '../middlewares/auth.middleware'
 
 const router = Router()
 
-router.post('/create', authenticateUser, createOrderController)
+router.post('/create', createOrderController)
 router.get('/getAll', authenticateUser, getAllOrdersController)
 router.get('/getByUserId/:userId', authenticateUser, getOrdersByUserIdController)
 router.delete('/delete-order/:orderMasterId', authenticateUser, deleteOrderController)

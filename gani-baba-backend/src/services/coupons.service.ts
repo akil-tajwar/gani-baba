@@ -10,7 +10,7 @@ export const createCoupon = async (data: NewCoupon) => {
   return newCoupon;
 };
 
-export const getCategories = async () => {
+export const getAllCoupons = async () => {
   return await db.select().from(couponsModel);
 };
 
