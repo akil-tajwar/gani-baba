@@ -58,13 +58,12 @@ export default function RegisterForm({
   const [token] = useAtom(tokenAtom)
 
   // ==========================================
-  // OTP & TIMER STATE
+  // OTP STATE
   // ==========================================
   const [showOtpScreen, setShowOtpScreen] = useState(false)
   const [otpCode, setOtpCode] = useState('')
   const [registeredPhone, setRegisteredPhone] = useState('')
-  const [resendTimer, setResendTimer] = useState(0) // Seconds remaining
-  const [resendLevel, setResendLevel] = useState(0) // 0 to 5 (max limit)
+  const [resendLevel, setResendLevel] = useState(0) // Tracks attempts
 
   // ==========================================
   // FORM STATE
@@ -110,36 +109,6 @@ export default function RegisterForm({
     { text: 'Contains special character (!@#$%^&*...)', met: false },
     { text: 'Not a common password', met: false },
   ])
-
-  // ==========================================
-  // TIMER LOGIC
-  // ==========================================
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-    }
-    return () => clearInterval(interval)
-  }, [resendTimer])
-
-  const formatTime = (seconds: number) => {
-    if (seconds >= 3600) {
-      const h = Math.floor(seconds / 3600)
-      const m = Math.floor((seconds % 3600) / 60)
-      return `${h}h ${m}m`
-    }
-    const m = Math.floor(seconds / 60)
-    const s = seconds % 60
-    return `${m}m ${s}s`
-  }
 
   // ==========================================
   // DATA FETCHING & VALIDATION
@@ -386,10 +355,7 @@ export default function RegisterForm({
         // Transition to OTP screen
         setRegisteredPhone(formData.phone)
         setShowOtpScreen(true)
-
-        // Start with 15 minutes (900 seconds) initial cooldown
-        setResendLevel(0)
-        setResendTimer(15 * 60)
+        setResendLevel(0) // Reset the resend attempts
 
         toast({
           title: 'Account Created! 🎉',
@@ -397,7 +363,9 @@ export default function RegisterForm({
           variant: 'default',
         })
       } else {
-        setError('Registration failed. Please try again.')
+        setError(
+          response.error?.message || 'Registration failed. Please try again.'
+        )
       }
     } catch (err: any) {
       console.error('Registration error:', err)
@@ -447,6 +415,8 @@ export default function RegisterForm({
           onClose()
           onSwitchToLogin()
         }, 2000)
+      } else {
+        setError(response.error?.message || 'Invalid or expired OTP.')
       }
     } catch (err: any) {
       setError(err.message || 'Invalid or expired OTP. Please try again.')
@@ -456,28 +426,22 @@ export default function RegisterForm({
   }
 
   const handleResendOtp = async () => {
-    if (resendTimer > 0) return
     try {
       setError('')
       setLoading(true)
 
-      await resendRegistrationOtp({ phone: registeredPhone })
+      const response = await resendRegistrationOtp({ phone: registeredPhone })
 
-      // If successful, increase the timer tier
-      const backoffMinutes = [15, 60, 180, 720, 1440]
-      const nextLevel = resendLevel + 1
-
-      if (nextLevel >= backoffMinutes.length) {
-        setResendLevel(nextLevel) // Level 5 = blocked
-        setResendTimer(Infinity)
-      } else {
-        setResendLevel(nextLevel)
-        setResendTimer(backoffMinutes[nextLevel] * 60)
+      if (response.error) {
+        // ✅ Show the EXACT error from the backend (e.g., "Please wait 60 minutes...")
+        setError(response.error.message)
+        return
       }
 
+      // ✅ Success. Increment attempt count.
+      setResendLevel((prev) => prev + 1)
       toast({ title: 'Success', description: 'A new OTP has been sent.' })
     } catch (err: any) {
-      // Backend will return the exact error if they try to bypass the frontend
       setError(err.message || 'Failed to resend OTP.')
     } finally {
       setLoading(false)
@@ -584,22 +548,14 @@ export default function RegisterForm({
 
             <div className="text-sm text-gray-500 mt-4 text-center">
               Didn&apos;t receive the code?{' '}
-              {resendLevel >= 5 ? (
-                <span className="text-red-500 font-medium">
-                  Daily limit reached
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleResendOtp}
-                  disabled={resendTimer > 0 || loading}
-                  className="font-medium text-primary-600 hover:text-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {resendTimer > 0
-                    ? `Resend in ${formatTime(resendTimer)}`
-                    : 'Resend OTP'}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={loading}
+                className="font-medium text-primary-600 hover:text-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Sending...' : 'Resend OTP'}
+              </button>
             </div>
           </form>
         ) : (

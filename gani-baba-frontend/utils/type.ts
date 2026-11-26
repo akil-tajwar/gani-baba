@@ -70,7 +70,6 @@ export const SignInRequestSchema = z.object({
     .regex(/^[0-9]{10,15}$/, "Invalid phone number"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
-
 export type SignInRequest = z.infer<typeof SignInRequestSchema>;
 
 export const SignInResponseSchema = z.object({
@@ -84,8 +83,23 @@ export const SignInResponseSchema = z.object({
     }),
   }),
 });
-
 export type SignInResponse = z.infer<typeof SignInResponseSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(8, 'New password must be at least 8 characters'),
+    confirmNewPassword: z
+      .string()
+      .min(8, 'Confirm new password must be at least 8 characters'),
+  })
+  .refine((data) => data.newPassword === data.confirmNewPassword, {
+    message: "New passwords don't match",
+    path: ['confirmNewPassword'],
+  })
+export type ChangePasswordRequest = z.infer<typeof changePasswordSchema>
 
 // ---------------------------------------------------------------------
 // Catalog types (shapes match the backend: flat category / brand / product)

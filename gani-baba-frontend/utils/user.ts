@@ -28,7 +28,7 @@ export const useInitializeUser = () => {
         } else {
           setToken('')
         }
-        console.log('maintoken:asdasasdasdasdd ',mainToken)
+        // console.log('maintoken:asdasasdasdasdd ',mainToken)
 
         const userStr = localStorage.getItem('currentUser')
         if (userStr) {

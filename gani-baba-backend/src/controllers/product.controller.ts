@@ -47,8 +47,8 @@ const handleError = (err: unknown, res: Response, fallback: string) => {
 export const createProductController = async (req: Request, res: Response) => {
   try {
     requirePermission(req, "create_products");
-    console.log("PRODUCTS HEADERS:", req.headers.authorization);
-    console.log("PRODUCTS REQ.USER:", req.user);
+    // console.log("PRODUCTS HEADERS:", req.headers.authorization);
+    // console.log("PRODUCTS REQ.USER:", req.user);
     const userId = getCurrentUserId(req);
     if (userId === null) {
       res.status(401).json({ error: "Unauthorized" });

@@ -33,6 +33,19 @@ type SignInProps = {
   onSwitchToRegister: () => void
 }
 
+const OTP_RESEND_SECONDS = 15 * 60
+const NOT_VERIFIED_REGEX = /not verified|verify/i
+
+// Pulls the real backend message out of whatever shape the error comes in
+// (thrown axios error, returned { error }, plain Error, string, ...)
+const getErrorMessage = (source: any): string | null =>
+  source?.response?.data?.error?.message ||
+  source?.response?.data?.message ||
+  source?.error?.message ||
+  source?.data?.error?.message ||
+  source?.message ||
+  (typeof source === 'string' ? source : null)
+
 export default function SignIn({
   isOpen,
   onClose,
@@ -65,22 +78,25 @@ export default function SignIn({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
+  // Reset the OTP screen when the modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setShowOtpScreen(false)
+      setOtpCode('')
+      setOtpError('')
+      setOtpSuccess('')
+      setError('')
+    }
+  }, [isOpen])
+
   // Timer for OTP resend
   useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-    }
+    if (resendTimer <= 0) return
+    const interval = setInterval(() => {
+      setResendTimer((prev) => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
     return () => clearInterval(interval)
-  }, [resendTimer])
+  }, [resendTimer > 0]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null
 
@@ -90,82 +106,102 @@ export default function SignIn({
     return `${m}m ${s}s`
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setIsLoading(true)
+  // ==========================================
+  // LOGIN FAILURE HANDLING
+  // ==========================================
+  const handleLoginFailure = async (msg: string) => {
+    if (NOT_VERIFIED_REGEX.test(msg)) {
+      // Switch the login popup to the verification screen
+      setError('')
+      setOtpError('')
+      setOtpSuccess('')
+      setOtpCode('')
+      setShowOtpScreen(true)
 
-    if (!phone || !password) {
-      setError('Please fill in all fields.')
-      setIsLoading(false)
+      toast({
+        title: 'Verification Required',
+        description: msg, // the actual backend message
+        variant: 'destructive',
+      })
+
+      // The backend message says the OTP was sent at registration (it may have
+      // expired), so request a fresh one
+      try {
+        const res: any = await resendRegistrationOtp({ phone })
+        if (res?.error) {
+          // e.g. "Please wait X minutes before requesting another OTP"
+          setOtpError(res.error.message)
+        } else {
+          setResendTimer(OTP_RESEND_SECONDS)
+        }
+      } catch (err: any) {
+        setOtpError(getErrorMessage(err) || 'Failed to send OTP.')
+      }
       return
     }
 
+    // Real credential error: show the backend's message
+    setError(msg)
+    toast({ title: 'Login Failed', description: msg, variant: 'destructive' })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (!phone || !password) {
+      setError('Please fill in all fields.')
+      return
+    }
+
+    setIsLoading(true)
     try {
-      const response = await signIn({ phone, password })
+      const response: any = await signIn({ phone, password })
+
+      // API helper returned an error instead of throwing
+      if (response?.error || response?.data?.error) {
+        await handleLoginFailure(
+          getErrorMessage(response) || 'Login failed. Please try again.'
+        )
+        return
+      }
 
       const token = response?.data?.data?.token
       const user = response?.data?.data?.user
 
       if (!token || !user) {
-        setError('Invalid credentials')
-        toast({
-          title: 'Error',
-          description: 'Wrong phone/password. Please contact Administrator',
-          variant: 'destructive',
-        })
-      } else {
-        const typedUser: UserType = user as UserType
-        localStorage.setItem('authToken', token)
-        localStorage.setItem('currentUser', JSON.stringify(typedUser))
-
-        toast({
-          title: 'Success',
-          description: `Welcome back, ${typedUser.username}!`,
-          variant: 'default',
-        })
-
-        onLogin(typedUser)
-        onClose()
-        router.push('/')
+        await handleLoginFailure(
+          getErrorMessage(response) || 'Invalid credentials'
+        )
+        return
       }
+
+      const typedUser: UserType = user as UserType
+      localStorage.setItem('authToken', token)
+      localStorage.setItem('currentUser', JSON.stringify(typedUser))
+
+      toast({
+        title: 'Success',
+        description: `Welcome back, ${typedUser.username}!`,
+        variant: 'default',
+      })
+
+      onLogin(typedUser)
+      onClose()
+      router.push('/')
     } catch (err: any) {
       console.error('Login error:', err)
-
-      // Extract the exact message from the backend
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        (typeof err === 'string' ? err : 'An unexpected error occurred')
-
-      // CHECK IF THE ERROR IS ABOUT VERIFICATION
-      if (
-        msg.toLowerCase().includes('not verified') ||
-        msg.toLowerCase().includes('verify')
-      ) {
-        setShowOtpScreen(true)
-        setResendTimer(15 * 60) // 15 minutes
-        toast({
-          title: 'Verification Required',
-          description: 'Your account is not verified. We have sent a new OTP.',
-          variant: 'default',
-        })
-        // Note: If your backend doesn't automatically resend the OTP upon this error,
-        // you might need to trigger a resend API call here.
-      } else {
-        // It's a real password error
-        setError(msg)
-        toast({
-          title: 'Login Failed',
-          description: msg,
-          variant: 'destructive',
-        })
-      }
+      await handleLoginFailure(
+        getErrorMessage(err) || 'An unexpected error occurred'
+      )
     } finally {
       setIsLoading(false)
     }
   }
 
+  // ==========================================
+  // OTP ACTIONS
+  // ==========================================
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setOtpError('')
@@ -178,12 +214,12 @@ export default function SignIn({
 
     try {
       setIsLoading(true)
-      const response = await verifyRegistration({
+      const response: any = await verifyRegistration({
         phone,
         otpCode,
       })
 
-      if (response.data && response.data.status === 'success') {
+      if (response?.data && response.data.status === 'success') {
         setOtpSuccess('Account verified successfully! Please login again.')
         toast({
           title: 'Verified! ✅',
@@ -192,15 +228,18 @@ export default function SignIn({
         })
 
         setTimeout(() => {
+          // Back to the login popup (phone stays, password cleared)
           setShowOtpScreen(false)
           setOtpCode('')
           setOtpSuccess('')
-          // Clear password so they can re-enter and login securely
+          setResendTimer(0)
           setPassword('')
         }, 2000)
+      } else {
+        setOtpError(getErrorMessage(response) || 'Invalid or expired OTP.')
       }
     } catch (err: any) {
-      setOtpError(err.message || 'Invalid or expired OTP.')
+      setOtpError(getErrorMessage(err) || 'Invalid or expired OTP.')
     } finally {
       setIsLoading(false)
     }
@@ -211,11 +250,17 @@ export default function SignIn({
     try {
       setOtpError('')
       setIsLoading(true)
-      await resendRegistrationOtp({ phone })
-      setResendTimer(15 * 60) // Reset timer for another 15 mins
+      const res: any = await resendRegistrationOtp({ phone })
+
+      if (res?.error) {
+        setOtpError(res.error.message)
+        return
+      }
+
+      setResendTimer(OTP_RESEND_SECONDS)
       toast({ title: 'Success', description: 'A new OTP has been sent.' })
     } catch (err: any) {
-      setOtpError(err.message || 'Failed to resend OTP.')
+      setOtpError(getErrorMessage(err) || 'Failed to resend OTP.')
     } finally {
       setIsLoading(false)
     }

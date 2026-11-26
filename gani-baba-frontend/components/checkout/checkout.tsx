@@ -352,17 +352,32 @@ export default function CheckoutPage() {
     try {
       setOtpSending(true)
       setOtpError('')
-      await requestOrderOtp(formData.phone, token ?? null)
+
+      // ✅ Check the returned object for errors
+      const res = await requestOrderOtp(formData.phone, token ?? null)
+
+      if (res.error) {
+        // The backend rejected it
+        const msg = res.error.message || 'Could not send OTP. Please try again.'
+        setOtpError(msg)
+        toast({
+          title: 'Failed to send OTP',
+          variant: 'destructive',
+          description: msg,
+        })
+        return // Stop here, don't show success
+      }
+
+      // Success
       setOtpSentOnce(true)
       toast({
         title: 'OTP sent',
         description: `Verification code sent to ${formData.phone}.`,
       })
     } catch (err: any) {
-      const msg =
-        err?.message ||
-        err?.response?.data?.message ||
-        'Could not send OTP. Please try again.'
+      // This catches network failures, not HTTP 400s
+      console.error('Failed to send OTP:', err)
+      const msg = err?.message || 'Network error. Please try again.'
       setOtpError(msg)
       toast({ title: 'Error', variant: 'destructive', description: msg })
     } finally {

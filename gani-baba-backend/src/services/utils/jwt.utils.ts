@@ -13,7 +13,7 @@ interface TokenPayload {
 
 const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || "24h";
 const JWT_SECRET = process.env.JWT_SECRET as string;
-console.log(JWT_SECRET);
+// console.log(JWT_SECRET);
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is not configured");
 }
@@ -25,7 +25,7 @@ export const generateAccessToken = (
     const secret = JWT_SECRET as string;
     const expiresIn =
       (ACCESS_TOKEN_EXPIRES_IN as `${number}${"s" | "m" | "h" | "d"}`) || "24h";
-    console.log(secret);
+    // console.log(secret);
     const options: SignOptions = {
       expiresIn: expiresIn,
     };
@@ -51,7 +51,7 @@ export const generateAccessToken = (
 
 export const verifyAccessToken = (token: string): TokenPayload => {
   try {
-    console.log(JWT_SECRET);
+    // console.log(JWT_SECRET);
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
   } catch (error) {
     console.error(error);
@@ -141,8 +141,8 @@ export async function getUserPermissions(userId: number) {
 }
 
 export const requirePermission = (req: Request, permission: string) => {
-  console.log(req.user);
-  console.log("Is permission", req.user?.hasPermission(permission));
+  // console.log(req.user);
+  // console.log("Is permission", req.user?.hasPermission(permission));
   if (!req.user?.hasPermission(permission)) {
     throw new Error("Forbidden");
   }

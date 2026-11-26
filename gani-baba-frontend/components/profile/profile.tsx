@@ -2,8 +2,8 @@
 
 import { tokenAtom, useInitializeUser, userDataAtom } from '@/utils/user'
 import { useAtom } from 'jotai'
-import React, { useState, useEffect } from 'react'
-import { getUserByUserId, fetchOrdersByUserId, updateUser } from '@/utils/api'
+import React, { useState, useEffect, useCallback } from 'react'
+import { getUserById, fetchOrdersByUserId, updateUser } from '@/utils/api'
 import { GetUsersType } from '@/utils/type'
 import {
   User,
@@ -29,6 +29,15 @@ import { WaveLine } from '@/components/shared/section-heading'
 
 type TabType = 'user-info' | 'my-orders'
 
+type EditFormData = {
+  fullName: string
+  email: string
+  phone: string
+  division: string
+  district: string
+  address: string
+}
+
 const methodLabel: Record<string, string> = {
   bkash: 'bKash',
   nagad: 'Nagad',
@@ -49,6 +58,25 @@ const statusStyle = (status?: string) => {
   }
 }
 
+// The API may answer with { data: user }, { data: { data: user } } or an array.
+// This finds the actual user object in any of those shapes.
+const unwrapUser = (payload: any): GetUsersType | null => {
+  const inner = payload?.data ?? payload
+  const user = Array.isArray(inner) ? inner[0] : inner
+  return user && typeof user === 'object' && 'userId' in user
+    ? (user as GetUsersType)
+    : null
+}
+
+const toFormData = (user: GetUsersType | null): EditFormData => ({
+  fullName: user?.fullName || '',
+  email: user?.email || '',
+  phone: user?.phone || '',
+  division: user?.division || '',
+  district: user?.district || '',
+  address: user?.address || '',
+})
+
 export default function Profile() {
   useInitializeUser()
   const [userData] = useAtom(userDataAtom)
@@ -57,52 +85,75 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<TabType>('user-info')
   const [userInfo, setUserInfo] = useState<GetUsersType | null>(null)
   const [orders, setOrders] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [userLoading, setUserLoading] = useState(true)
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const [editFormData, setEditFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    division: '',
-    district: '',
-    address: '',
-  })
+  const [editFormData, setEditFormData] = useState<EditFormData>(
+    toFormData(null)
+  )
 
-  // Fetch user info
-  useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        setLoading(true)
-        const response = await getUserByUserId(token, userData?.userId ?? 0)
-        setUserInfo(response.data)
+  // ---------------- Load the logged-in user (identified by the token) ----------------
+  const loadUser = useCallback(async () => {
+    if (!token) return null
 
-        // Initialize edit form data
-        setEditFormData({
-          fullName: response.data?.fullName || '',
-          email: response.data?.email || '',
-          phone: response.data?.phone || '',
-          division: response.data?.division || '',
-          district: response.data?.district || '',
-          address: response.data?.address || '',
+    setUserLoading(true)
+    setLoadError('')
+
+    try {
+      const response = await getUserById(token)
+
+      // fetchApi returns { data, error } instead of throwing
+      if (response.error) {
+        setLoadError(response.error.message)
+        toast({
+          title: 'Error',
+          description: response.error.message,
+          variant: 'destructive',
         })
-      } catch (error) {
-        // user info could not be loaded; the page shows empty values
-      } finally {
-        setLoading(false)
+        return null
       }
+
+      const user = unwrapUser(response.data)
+      if (!user) {
+        setLoadError('Could not read your profile data.')
+        return null
+      }
+
+      setUserInfo(user)
+      setEditFormData(toFormData(user))
+      return user
+    } catch (error: any) {
+      setLoadError(error?.message || 'Failed to load profile.')
+      return null
+    } finally {
+      setUserLoading(false)
     }
+  }, [token])
 
-    fetchUserInfo()
-  }, [userData?.userId, token])
+  useEffect(() => {
+    loadUser()
+  }, [loadUser])
 
-  // Fetch orders when orders tab is active
+  // ---------------- Load orders when the orders tab is active ----------------
   useEffect(() => {
     const fetchOrders = async () => {
-      if (activeTab !== 'my-orders' || !userData?.userId || !token) return
+      if (activeTab !== 'my-orders' || !token) return
 
       try {
-        setLoading(true)
-        const response = await fetchOrdersByUserId(token, userData?.userId)
+        setOrdersLoading(true)
+        const response = await fetchOrdersByUserId(token)
+
+        if (response.error) {
+          toast({
+            title: 'Error',
+            description: response.error.message || 'Failed to load orders',
+            variant: 'destructive',
+          })
+          return
+        }
+
         setOrders(
           Array.isArray(response.data)
             ? response.data
@@ -118,14 +169,14 @@ export default function Profile() {
           variant: 'destructive',
         })
       } finally {
-        setLoading(false)
+        setOrdersLoading(false)
       }
     }
 
     fetchOrders()
-  }, [activeTab, userData?.userId, token])
+  }, [activeTab, token])
 
-  // Get available districts
+  // ---------------- Edit helpers ----------------
   const getAvailableDistricts = () => {
     if (!editFormData.division) return []
     return (
@@ -135,16 +186,14 @@ export default function Profile() {
     )
   }
 
-  // Handle division change
   const handleDivisionChange = (value: { id: string; name: string } | null) => {
     setEditFormData((prev) => ({
       ...prev,
       division: value?.id || '',
-      district: '', // Reset district when division changes
+      district: '', // reset district when division changes
     }))
   }
 
-  // Handle district change
   const handleDistrictChange = (value: { id: string; name: string } | null) => {
     setEditFormData((prev) => ({
       ...prev,
@@ -152,57 +201,58 @@ export default function Profile() {
     }))
   }
 
-  // Handle save changes
+  // Always start editing from the latest saved data, so fields are pre-filled
+  const handleStartEdit = () => {
+    setEditFormData(toFormData(userInfo))
+    setIsEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    setEditFormData(toFormData(userInfo))
+    setIsEditing(false)
+  }
+
   const handleSaveChanges = async () => {
-    if (!userData?.userId || !token) return
+    const userId = userInfo?.userId ?? userData?.userId
+    if (!userId || !token) return
 
     try {
-      setLoading(true)
+      setSaving(true)
 
-      const updateResponse = await updateUser(
-        token,
-        userData.userId,
-        editFormData
-      )
+      const updateResponse = await updateUser(token, userId, editFormData)
 
       if (updateResponse.error) {
         toast({
           title: 'Error',
-          description: (updateResponse.error?.details as any).message,
+          description:
+            (updateResponse.error.details as any)?.message ||
+            updateResponse.error.message,
           variant: 'destructive',
         })
         return
       }
 
-      const response = await getUserByUserId(token, userData.userId)
-      setUserInfo(response.data)
+      // Reload so the page shows exactly what is stored
+      await loadUser()
       setIsEditing(false)
 
       toast({
         title: 'Success',
         description: 'Profile updated successfully',
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update profile:', error)
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to update profile',
+        variant: 'destructive',
+      })
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
-  // Handle cancel editing
-  const handleCancelEdit = () => {
-    setEditFormData({
-      fullName: userInfo?.fullName || '',
-      email: userInfo?.email || '',
-      phone: userInfo?.phone || '',
-      division: userInfo?.division || '',
-      district: userInfo?.district || '',
-      address: userInfo?.address || '',
-    })
-    setIsEditing(false)
-  }
-
-  // Get first letter for avatar
+  // ---------------- Derived display values ----------------
   const getInitial = () => {
     return (
       userInfo?.fullName?.charAt(0).toUpperCase() ||
@@ -234,7 +284,8 @@ export default function Profile() {
   const inputClass =
     'rounded-none border-secondary/20 bg-white focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary'
 
-  if (loading && !userInfo) {
+  // ---------------- Loading / error screens ----------------
+  if (userLoading && !userInfo) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
@@ -242,6 +293,25 @@ export default function Profile() {
           <p className="text-xs uppercase tracking-[0.25em] text-secondary/60">
             Loading profile
           </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!userInfo && loadError) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-sm uppercase tracking-[0.2em] text-secondary">
+            Could not load your profile
+          </p>
+          <p className="mt-2 text-sm text-secondary/60">{loadError}</p>
+          <button
+            onClick={loadUser}
+            className="mt-6 border border-secondary px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-secondary transition-all duration-300 hover:bg-secondary hover:text-white"
+          >
+            Try again
+          </button>
         </div>
       </div>
     )
@@ -321,7 +391,7 @@ export default function Profile() {
                     </h2>
                     {!isEditing ? (
                       <button
-                        onClick={() => setIsEditing(true)}
+                        onClick={handleStartEdit}
                         className="group flex items-center gap-2 border border-secondary px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-secondary transition-all duration-300 hover:bg-secondary hover:text-white"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
@@ -331,15 +401,16 @@ export default function Profile() {
                       <div className="flex gap-2">
                         <button
                           onClick={handleSaveChanges}
-                          disabled={loading}
+                          disabled={saving}
                           className="flex items-center gap-2 bg-primary px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-white transition-colors hover:bg-secondary disabled:opacity-60"
                         >
                           <Save className="h-3.5 w-3.5" />
-                          {loading ? 'Saving...' : 'Save changes'}
+                          {saving ? 'Saving...' : 'Save changes'}
                         </button>
                         <button
                           onClick={handleCancelEdit}
-                          className="flex items-center gap-2 border border-secondary/30 px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-secondary transition-colors hover:border-secondary"
+                          disabled={saving}
+                          className="flex items-center gap-2 border border-secondary/30 px-5 py-2.5 text-xs uppercase tracking-[0.2em] text-secondary transition-colors hover:border-secondary disabled:opacity-60"
                         >
                           <X className="h-3.5 w-3.5" />
                           Cancel
@@ -383,7 +454,7 @@ export default function Profile() {
                         </div>
                       </dl>
                     ) : (
-                      /* ---- edit form ---- */
+                      /* ---- edit form (pre-filled with current data) ---- */
                       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label
@@ -529,14 +600,14 @@ export default function Profile() {
                   <h2 className="text-sm font-semibold uppercase tracking-[0.22em] text-secondary">
                     Order history
                   </h2>
-                  {!loading && orders.length > 0 && (
+                  {!ordersLoading && orders.length > 0 && (
                     <span className="text-xs uppercase tracking-[0.18em] text-secondary/50">
                       {orders.length} {orders.length === 1 ? 'order' : 'orders'}
                     </span>
                   )}
                 </div>
 
-                {loading ? (
+                {ordersLoading ? (
                   <div className="border border-secondary/10 bg-white py-16 text-center">
                     <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
                     <p className="text-xs uppercase tracking-[0.25em] text-secondary/60">

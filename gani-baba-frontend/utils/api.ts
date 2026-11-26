@@ -19,6 +19,7 @@ import {
   DashboardRange,
   DashboardOverviewType,
   dashboardOverviewSchema,
+  ChangePasswordRequest,
 } from '@/utils/type'
 
 export async function registerUser(data: RegisterRequest) {
@@ -57,6 +58,26 @@ export async function signIn(data: { phone: string; password: string }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: data,
+  })
+}
+
+export async function changePassword(token: string, data: ChangePasswordRequest) {
+  return fetchApi<ChangePasswordRequest>({
+    url: `api/auth/change-password`,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `${token}`,
+    },
+    body: data,
+  })
+}
+
+export async function getUserById(token: string) {
+  return fetchApi<{ status: string; data: GetUsersType[] }>({
+    url: 'api/auth/get-user-by-id',
+    method: 'GET',
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
   })
 }
 
@@ -363,7 +384,7 @@ export async function requestOrderOtp(phone: string, token: string | null) {
   return fetchApi<{ success: boolean; message: string }>({
     url: 'api/orders/request-otp',
     method: 'POST',
-    headers: getAuthHeader(token), // ✅ Safely formats the header
+    headers: getAuthHeader(token),
     body: { phone },
   })
 }
@@ -388,9 +409,9 @@ export async function fetchAllOrders(token: string) {
   })
 }
 
-export async function fetchOrdersByUserId(token: string, userId: number) {
+export async function fetchOrdersByUserId(token: string) {
   return fetchApi<GetOrderType>({
-    url: `api/orders/getByUserId/${userId}`,
+    url: `api/orders/getByUserId`,
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

@@ -76,6 +76,7 @@ export const otpVerificationModel = pgTable("otp_verification", {
   isUsed: boolean("is_used").default(false).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   resendCount: integer("resend_count").default(0).notNull(),
+  verifiedAt: timestamp("verified_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

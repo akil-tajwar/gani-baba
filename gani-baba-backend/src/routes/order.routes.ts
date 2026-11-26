@@ -11,6 +11,7 @@ import {
 import {
   authenticateUser,
   optionalAuthenticateUser,
+  otpLimiter,
 } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -18,12 +19,13 @@ const router = Router();
 router.post("/create", optionalAuthenticateUser, createOrderController);
 router.post(
   "/request-otp",
+  otpLimiter,
   optionalAuthenticateUser,
   requestOrderOtpController,
 );
 router.get("/getAll", authenticateUser, getAllOrdersController);
 router.get(
-  "/getByUserId/:userId",
+  "/getByUserId",
   authenticateUser,
   getOrdersByUserIdController,
 );

@@ -287,7 +287,7 @@ export const changePasswordController = async (
   try {
     requirePermission(req, "edit_users");
 
-    const id = parseId(req.params.userId);
+    const id = (req as any).user?.userId;
     if (id === null) {
       res.status(400).json({ status: "fail", message: "Invalid userId" });
       return;
@@ -350,8 +350,8 @@ export const getUserByIdController = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    requirePermission(req, "view_users");
-    const id = parseId(req.params.userId);
+    requirePermission(req, "view_my_profile");
+    const id = (req as any).user?.userId;
     if (id === null) {
       res.status(400).json({ message: "Invalid userId" });
       return;

@@ -26,6 +26,7 @@ import type { GetBrandType, GetCategoryType } from '@/utils/type'
 import { useCart } from '@/hooks/use-cart'
 import { siteConfig } from '@/utils/constants'
 import Image from 'next/image'
+import ChangePasswordModal from './change-password-modal'
 
 interface NavbarProps {
   searchQuery: string
@@ -70,6 +71,7 @@ export default function Navbar({
   const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const [showSearchOverlay, setShowSearchOverlay] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
   const router = useRouter()
@@ -323,13 +325,20 @@ export default function Navbar({
                       </DropdownMenuItem>
                       {roleId === 1 && (
                         <DropdownMenuItem
-                          onClick={() => router.push('/dashboard/dashboard-overview')}
+                          onClick={() =>
+                            router.push('/dashboard/dashboard-overview')
+                          }
                         >
                           Admin Dashboard
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => router.push('/profile')}>
                         Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setIsChangePasswordOpen(true)}
+                      >
+                        Change Password
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={handleLogout}
@@ -345,6 +354,12 @@ export default function Navbar({
           </div>
         </header>
       )}
+
+      {/* CHANGE PASSWORD POPUP */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+      />
 
       {/* MOBILE SIDEBAR OVERLAY */}
       {isSidebarOpen && (

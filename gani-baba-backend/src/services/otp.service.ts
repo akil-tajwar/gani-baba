@@ -1,18 +1,14 @@
 import { db } from "../config/database";
 import { otpVerificationModel } from "../schemas";
-import { eq, and, desc, gt, isNull } from "drizzle-orm";
+import { eq, and, desc, gt, isNull, isNotNull } from "drizzle-orm";
 import { BadRequestError } from "./utils/errors.utils";
 import { generateOtp, hashOtp, sendSms } from "./utils/otp.utils";
 
 type Purpose = "registration" | "monthly" | "order";
 
-// Resend backoff: 15m, 1h, 3h, 12h, 24h
-const BACKOFF_MINUTES = [15, 60, 180, 720, 1440];
+// ✅ Replaced BACKOFF_MINUTES with a hard limit
+const MAX_RESENDS = 5;
 
-/**
- * Identity matcher: guests are matched by phone + null userId;
- * logged-in users by userId.
- */
 const identityWhere = (
   purpose: Purpose,
   userId: number | null,
@@ -29,9 +25,6 @@ const identityWhere = (
         eq(otpVerificationModel.purpose, purpose),
       );
 
-// ================================================================
-// CREATE
-// ================================================================
 export const createOtp = async (
   userId: number | null,
   phone: string,
@@ -42,7 +35,7 @@ export const createOtp = async (
   const otpHash = hashOtp(rawOtp);
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-  // Invalidate any unused OTPs for this identity + purpose
+  // Invalidate old unused OTPs
   await db
     .update(otpVerificationModel)
     .set({ isUsed: true })
@@ -66,56 +59,41 @@ export const createOtp = async (
     phone,
     `Your Gani Baba verification code is: ${rawOtp}. Valid for 5 minutes.`,
   );
-
   return true;
 };
 
-// ================================================================
-// RESEND (backoff-aware)
-// ================================================================
 export const resendOtp = async (
   userId: number | null,
   phone: string,
   purpose: Purpose,
 ) => {
-  const [latestOtp] = await db
+  // 1. Look at all OTPs requested in the last 60 minutes
+  const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+  const recentOtps = await db
     .select()
     .from(otpVerificationModel)
-    .where(identityWhere(purpose, userId, phone))
-    .orderBy(desc(otpVerificationModel.createdAt))
-    .limit(1);
+    .where(
+      and(
+        identityWhere(purpose, userId, phone),
+        gt(otpVerificationModel.createdAt, sixtyMinutesAgo), // ✅ Check time window
+      ),
+    );
 
-  const currentCount = latestOtp ? latestOtp.resendCount : 0;
-
-  if (currentCount >= BACKOFF_MINUTES.length) {
+  // 2. If they've requested 5 or more in the last 60 mins, block them.
+  if (recentOtps.length >= 5) {
     throw BadRequestError(
-      "Maximum resend limit reached. Please try again tomorrow.",
+      "You have requested too many OTPs. Please wait 60 minutes and try again.",
     );
   }
 
-  const requiredWaitMinutes = BACKOFF_MINUTES[currentCount];
+  // 3. Otherwise, send the OTP immediately
+  const currentCount = recentOtps.length > 0 ? recentOtps.length : 0;
 
-  if (latestOtp?.createdAt) {
-    const timePassedMinutes =
-      (Date.now() - latestOtp.createdAt.getTime()) / 1000 / 60;
-
-    if (timePassedMinutes < requiredWaitMinutes) {
-      const remainingMinutes = Math.ceil(
-        requiredWaitMinutes - timePassedMinutes,
-      );
-      throw BadRequestError(
-        `Please wait ${remainingMinutes} minutes before requesting a new OTP.`,
-      );
-    }
-  }
-
-  await createOtp(userId, phone, purpose, currentCount + 1);
+  await createOtp(userId, phone, purpose, currentCount);
   return true;
 };
 
-// ================================================================
-// VERIFY — by userId (registration / monthly)
-// ================================================================
 export const verifyOtp = async (
   userId: number,
   rawOtp: string,
@@ -140,17 +118,15 @@ export const verifyOtp = async (
 
   if (!record) throw BadRequestError("Invalid or expired OTP");
 
+  // ✅ Set both isUsed AND verifiedAt
   await db
     .update(otpVerificationModel)
-    .set({ isUsed: true })
+    .set({ isUsed: true, verifiedAt: new Date() })
     .where(eq(otpVerificationModel.otpId, record.otpId));
 
   return true;
 };
 
-// ================================================================
-// VERIFY — by phone (guest "order" purpose, also used at checkout)
-// ================================================================
 export const verifyPhoneOtp = async (
   phone: string,
   rawOtp: string,
@@ -175,22 +151,15 @@ export const verifyPhoneOtp = async (
 
   if (!record) throw BadRequestError("Invalid or expired OTP");
 
+  // ✅ Set both isUsed AND verifiedAt
   await db
     .update(otpVerificationModel)
-    .set({ isUsed: true })
+    .set({ isUsed: true, verifiedAt: new Date() })
     .where(eq(otpVerificationModel.otpId, record.otpId));
 
   return true;
 };
 
-// ================================================================
-// 30-DAY WINDOW CHECK (checkout)
-// ================================================================
-/**
- * Returns true if the user verified via "registration" OR "monthly"
- * (or "order") within the last 30 days. Any successful verification
- * counts, so registration + first 30 days are covered.
- */
 export const hasRecentMonthlyVerification = async (userId: number) => {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -201,11 +170,10 @@ export const hasRecentMonthlyVerification = async (userId: number) => {
     .where(
       and(
         eq(otpVerificationModel.userId, userId),
-        eq(otpVerificationModel.isUsed, true),
-        gt(otpVerificationModel.createdAt, thirtyDaysAgo),
+        isNotNull(otpVerificationModel.verifiedAt), // ✅ Must be actually verified
+        gt(otpVerificationModel.verifiedAt, thirtyDaysAgo), // ✅ Check verifiedAt
       ),
     )
-    .orderBy(desc(otpVerificationModel.createdAt))
     .limit(1);
 
   return !!recent;

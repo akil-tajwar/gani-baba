@@ -54,11 +54,11 @@ const parseId = (value: string | undefined): number | null => {
 };
 
 const getCurrentUserId = (req: Request): number | null => {
-  console.log("🚀 ~ getCurrentUserId ~ req:", req)
   return (req as any).user?.userId ?? null;
 };
 
 const handleError = (error: unknown, res: Response, fallback: string) => {
+  // 1. Handle Zod validation errors
   if (error instanceof z.ZodError) {
     res.status(400).json({
       success: false,
@@ -67,8 +67,31 @@ const handleError = (error: unknown, res: Response, fallback: string) => {
     });
     return;
   }
+
+  // 2. Handle your custom AppErrors (BadRequestError, UnauthorizedError, etc.)
+  if (
+    error &&
+    typeof error === "object" &&
+    "statusCode" in error &&
+    "message" in error
+  ) {
+    const appError = error as any;
+    console.error(
+      `[AppError] ${appError.message} (Status: ${appError.statusCode})`,
+    );
+    res.status(appError.statusCode).json({
+      success: false,
+      message: appError.message, // ✅ Send the exact message!
+    });
+    return;
+  }
+
+  // 3. Handle unexpected crashes (500)
   console.error(fallback, error);
-  res.status(500).json({ success: false, message: fallback });
+  res.status(500).json({
+    success: false,
+    message: error instanceof Error ? error.message : fallback,
+  });
 };
 
 const todayStr = (): string => {
@@ -256,11 +279,7 @@ export const requestOrderOtpController = async (
     const { phone } = phoneSchema.parse(req.body);
     const userId = getCurrentUserId(req); // null for guests
 
-    try {
-      await createOtp(userId, phone, "order");
-    } catch {
-      await resendOtp(userId, phone, "order");
-    }
+    await resendOtp(userId, phone, "order");
 
     res.status(200).json({ success: true, message: "OTP sent" });
   } catch (error) {
@@ -287,7 +306,7 @@ export const getOrdersByUserIdController = async (
 ) => {
   try {
     requirePermission(req, "view_orders");
-    const userId = parseId(req.params.userId);
+    const userId = (req as any).user?.userId;
     if (userId === null) {
       res.status(400).json({ success: false, message: "Invalid userId" });
       return;

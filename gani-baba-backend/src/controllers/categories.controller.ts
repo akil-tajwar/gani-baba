@@ -29,8 +29,8 @@ export const createCategoryController = async (
 ) => {
   try {
     requirePermission(req, "create_categories");
-    console.log("HEADERS:", req.headers.authorization);
-    console.log("REQ.USER:", req.user);
+    // console.log("HEADERS:", req.headers.authorization);
+    // console.log("REQ.USER:", req.user);
     const userId = getCurrentUserId(req);
     if (userId === null) {
       res.status(401).json({ status: "fail", message: "Unauthorized" });
