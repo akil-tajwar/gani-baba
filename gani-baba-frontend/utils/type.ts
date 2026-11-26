@@ -211,7 +211,8 @@ export const getOrderSchema = z.object({
       ordersDetailsId: z.number(),
       ordersMasterId: z.number().nullable(),
       productId: z.number(),
-      productName: z.string().nullable().optional(), // from join in getOrdersByUserId
+      productName: z.string().nullable().optional(),
+      photoUrl: z.string().nullable().optional(),
       quantity: z.number(),
       amount: z.number(),
       createdBy: z.number().nullable(),

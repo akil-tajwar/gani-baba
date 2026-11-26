@@ -110,8 +110,25 @@ export const getAllOrders = async () => {
   return await Promise.all(
     masters.map(async (master) => {
       const details = await db
-        .select()
+        .select({
+          ordersDetailsId: ordersDetailsModel.ordersDetailsId,
+          ordersMasterId: ordersDetailsModel.ordersMasterId,
+          productId: ordersDetailsModel.productId,
+          quantity: ordersDetailsModel.quantity,
+          amount: ordersDetailsModel.amount,
+          createdBy: ordersDetailsModel.createdBy,
+          createdAt: ordersDetailsModel.createdAt,
+          updatedBy: ordersDetailsModel.updatedBy,
+          updatedAt: ordersDetailsModel.updatedAt,
+          // ✅ joined fields from products
+          productName: productsModel.name,
+          photoUrl: productsModel.photoUrl,
+        })
         .from(ordersDetailsModel)
+        .leftJoin(
+          productsModel,
+          eq(ordersDetailsModel.productId, productsModel.productId),
+        )
         .where(eq(ordersDetailsModel.ordersMasterId, master.ordersMasterId));
 
       return {

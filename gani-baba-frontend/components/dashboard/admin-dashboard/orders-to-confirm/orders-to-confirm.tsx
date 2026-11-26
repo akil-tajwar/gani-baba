@@ -8,6 +8,7 @@ import {
   ArrowUpDown,
   Search,
   FileChartColumn,
+  Eye,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,18 +44,11 @@ import { tokenAtom, useInitializeUser } from '@/utils/user'
 import { useAtom } from 'jotai'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/hooks/use-toast'
+import { Popup } from '@/utils/popup'
+import Image from 'next/image'
+import { Label } from '@/components/ui/label'
 
-type SortColumn =
-  | 'fullName'
-  | 'phone'
-  | 'division'
-  | 'district'
-  | 'totalAmount'
-  | 'method'
-  | 'createdAt'
-  | 'status'
-  | 'transactionId'
-  | 'address'
+type SortColumn = 'fullName' | 'phone' | 'totalAmount' | 'createdAt' | 'status'
 type SortDirection = 'asc' | 'desc'
 
 const formatDate = (dateString?: string | null) => {
@@ -74,7 +68,6 @@ export default function OrdersToConfirm() {
   const router = useRouter()
   const { toast } = useToast()
 
-  // State variables
   const [orders, setOrders] = useState<GetOrderType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sortColumn, setSortColumn] = useState<SortColumn>('createdAt')
@@ -83,15 +76,16 @@ export default function OrdersToConfirm() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  // Delete confirmation dialog state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [orderToDelete, setOrderToDelete] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Confirm order dialog state
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
   const [orderToConfirm, setOrderToConfirm] = useState<number | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
+
+  const [isViewOpen, setIsViewOpen] = useState(false)
+  const [viewOrder, setViewOrder] = useState<GetOrderType | null>(null)
 
   const fetchOrdersData = useCallback(async () => {
     if (!token) return
@@ -102,7 +96,6 @@ export default function OrdersToConfirm() {
         router.push('/unauthorized-access')
         return
       } else {
-        // Filter only pending orders
         const pendingOrders = (response.data ?? []).filter(
           (order) => order.orderMaster.status === 'pending'
         )
@@ -124,11 +117,9 @@ export default function OrdersToConfirm() {
     fetchOrdersData()
   }, [fetchOrdersData])
 
-  // Filtering orders based on search term
   const filteredOrders = useMemo(() => {
     if (!searchTerm) return orders
     const q = searchTerm.toLowerCase()
-
     return orders.filter((order) => {
       return (
         order.orderMaster.fullName?.toLowerCase().includes(q) ||
@@ -143,7 +134,6 @@ export default function OrdersToConfirm() {
     })
   }, [orders, searchTerm])
 
-  // Sorting orders
   const sortedOrders = useMemo(() => {
     const sorted = [...filteredOrders]
     sorted.sort((a, b) => {
@@ -165,7 +155,6 @@ export default function OrdersToConfirm() {
     return sorted
   }, [filteredOrders, sortColumn, sortDirection])
 
-  // Pagination
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage
     return sortedOrders.slice(startIndex, startIndex + itemsPerPage)
@@ -182,6 +171,11 @@ export default function OrdersToConfirm() {
     }
   }
 
+  const handleViewClick = (order: GetOrderType) => {
+    setViewOrder(order)
+    setIsViewOpen(true)
+  }
+
   const handleConfirmClick = (orderId: number) => {
     setOrderToConfirm(orderId)
     setIsConfirmDialogOpen(true)
@@ -189,13 +183,10 @@ export default function OrdersToConfirm() {
 
   const handleConfirmOrder = async () => {
     if (!orderToConfirm || !token) return
-
     try {
       setIsConfirming(true)
       const response = await confirmOrder(token, orderToConfirm)
-
       if ((response as any).error) {
-        console.error('Error confirming order:', (response as any).error)
         toast({
           title: 'Error',
           description:
@@ -210,7 +201,6 @@ export default function OrdersToConfirm() {
         fetchOrdersData()
       }
     } catch (error) {
-      console.error('Error confirming order:', error)
       toast({
         title: 'Error',
         description: 'Failed to confirm order',
@@ -230,13 +220,10 @@ export default function OrdersToConfirm() {
 
   const handleDeleteOrder = async () => {
     if (!orderToDelete || !token) return
-
     try {
       setIsDeleting(true)
       const response = await deleteOrder(orderToDelete, token)
-
       if (response.error) {
-        console.error('Error deleting order:', response.error)
         toast({
           title: 'Error',
           description: response.error?.message || 'Failed to delete order',
@@ -250,7 +237,6 @@ export default function OrdersToConfirm() {
         fetchOrdersData()
       }
     } catch (error) {
-      console.error('Error deleting order:', error)
       toast({
         title: 'Error',
         description: 'Failed to delete order',
@@ -304,35 +290,29 @@ export default function OrdersToConfirm() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table — minimal columns */}
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader className="bg-primary-100">
             <TableRow>
               <TableHead>Sl No</TableHead>
-              <SortHead column="fullName">Customer Name</SortHead>
+              <SortHead column="fullName">Customer</SortHead>
               <SortHead column="phone">Phone</SortHead>
-              <SortHead column="division">Division</SortHead>
-              <SortHead column="district">District</SortHead>
-              <SortHead column="method">Payment Method</SortHead>
-              <SortHead column="transactionId">Transaction ID</SortHead>
-              <SortHead column="totalAmount">Total Amount</SortHead>
-              <SortHead column="createdAt">Order Date</SortHead>
-              <SortHead column="address">Address</SortHead>
+              <SortHead column="totalAmount">Total</SortHead>
               <SortHead column="status">Status</SortHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="text-end">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-4">
+                <TableCell colSpan={6} className="text-center py-4">
                   Loading orders...
                 </TableCell>
               </TableRow>
             ) : paginatedOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-4">
+                <TableCell colSpan={6} className="text-center py-4">
                   No pending orders found
                 </TableCell>
               </TableRow>
@@ -342,21 +322,11 @@ export default function OrdersToConfirm() {
                   <TableCell>
                     {(currentPage - 1) * itemsPerPage + index + 1}
                   </TableCell>
-                  <TableCell>{order.orderMaster.fullName}</TableCell>
+                  <TableCell className="font-medium">
+                    {order.orderMaster.fullName}
+                  </TableCell>
                   <TableCell>{order.orderMaster.phone}</TableCell>
-                  <TableCell>{order.orderMaster.division}</TableCell>
-                  <TableCell>{order.orderMaster.district}</TableCell>
-                  <TableCell className="uppercase">
-                    {order.orderMaster.method}
-                  </TableCell>
-                  <TableCell>
-                    {order.orderMaster.transactionId || '-'}
-                  </TableCell>
                   <TableCell>৳{order.orderMaster.totalAmount}</TableCell>
-                  <TableCell>
-                    {formatDate(order.orderMaster.createdAt)}
-                  </TableCell>
-                  <TableCell>{order.orderMaster.address}</TableCell>
                   <TableCell className="text-sm">
                     <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium capitalize ${
@@ -372,31 +342,36 @@ export default function OrdersToConfirm() {
                       {order.orderMaster.status}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          handleConfirmClick(order.orderMaster.ordersMasterId!)
-                        }
-                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Confirm
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          handleDeleteClick(order.orderMaster.ordersMasterId!)
-                        }
-                        className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    </div>
+                  <TableCell className="space-x-4 text-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewClick(order)}
+                      title="View details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        handleConfirmClick(order.orderMaster.ordersMasterId!)
+                      }
+                      title="Confirm order"
+                      className="bg-green-50 hover:bg-primary text-green-700 border-primary"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        handleDeleteClick(order.orderMaster.ordersMasterId!)
+                      }
+                      title="Delete order"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -447,7 +422,6 @@ export default function OrdersToConfirm() {
                     </PaginationItem>
                   )
                 }
-
                 return null
               })}
 
@@ -467,6 +441,155 @@ export default function OrdersToConfirm() {
           </Pagination>
         </div>
       )}
+
+      {/* View Details Popup — full data here */}
+      <Popup
+        isOpen={isViewOpen}
+        onClose={() => {
+          setIsViewOpen(false)
+          setViewOrder(null)
+        }}
+        title="Order Details"
+        size="sm:max-w-3xl"
+      >
+        {viewOrder && (
+          <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+            {/* Master Info */}
+            <div>
+              <h3 className="text-base font-semibold mb-3 border-b pb-2">
+                Customer & Order Information
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">Order ID</Label>
+                  <p className="font-medium">
+                    #{viewOrder.orderMaster.ordersMasterId}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <p className="font-medium capitalize">
+                    {viewOrder.orderMaster.status}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Full Name</Label>
+                  <p className="font-medium">
+                    {viewOrder.orderMaster.fullName}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Phone</Label>
+                  <p className="font-medium">{viewOrder.orderMaster.phone}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Email</Label>
+                  <p className="font-medium">
+                    {viewOrder.orderMaster.email || '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Billing Phone</Label>
+                  <p className="font-medium">
+                    {viewOrder.orderMaster.billingPhone}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Division</Label>
+                  <p className="font-medium">
+                    {viewOrder.orderMaster.division}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">District</Label>
+                  <p className="font-medium">
+                    {viewOrder.orderMaster.district}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-muted-foreground">Address</Label>
+                  <p className="font-medium">{viewOrder.orderMaster.address}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">
+                    Payment Method
+                  </Label>
+                  <p className="font-medium uppercase">
+                    {viewOrder.orderMaster.method}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">
+                    Transaction ID
+                  </Label>
+                  <p className="font-medium">
+                    {viewOrder.orderMaster.transactionId || '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Total Amount</Label>
+                  <p className="font-semibold">
+                    ৳{viewOrder.orderMaster.totalAmount}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Order Date</Label>
+                  <p className="font-medium">
+                    {formatDate(viewOrder.orderMaster.createdAt)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Items */}
+            <div>
+              <h3 className="text-base font-semibold mb-3 border-b pb-2">
+                Order Items
+              </h3>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-primary-100">
+                    <TableRow>
+                      <TableHead>Sl No</TableHead>
+                      <TableHead>Image</TableHead>
+                      <TableHead>Product Name</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {viewOrder.orderDetails.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">
+                          No items found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      viewOrder.orderDetails.map((detail, idx) => (
+                        <TableRow key={detail.ordersDetailsId}>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>
+                            <Image
+                              src={detail.photoUrl || '/placeholder.svg'}
+                              alt={detail.productName || 'Product'}
+                              width={40}
+                              height={40}
+                              className="w-10 h-10 object-cover rounded"
+                            />
+                          </TableCell>
+                          <TableCell>{detail.productName || '-'}</TableCell>
+                          <TableCell>{detail.quantity}</TableCell>
+                          <TableCell>৳{detail.amount}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        )}
+      </Popup>
 
       {/* Confirm Order Dialog */}
       <AlertDialog
